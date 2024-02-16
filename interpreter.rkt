@@ -27,6 +27,16 @@
     )))
 
 ;TODO: implement all numeric operator here
-(define M_value)
+(define M_value
+    (lambda (statement)
+        (cond
+            [(number? statement)        statement]
+            [(eq? (car statement) '+)   (+ (M_value (cadr statement)) (M_value (caddr statement)))]
+            [(eq? (car statement) '-)   (- (M_value (cadr statement)) (M_value (caddr statement)))]
+            [(eq? (car statement) '*)   (* (M_value (cadr statement)) (M_value (caddr statement)))]
+            [(eq? (car statement) '/)   (quotient (M_value (cadr statement)) (M_value (caddr statement)))]
+            [(eq? (car statement) '%)   (remainder (M_value (cadr statement)) (M_value (caddr statement)))]
+            [else (error "")]
+        )))
 ;TODO: implement all logical operator here
 (define M_boolean)
