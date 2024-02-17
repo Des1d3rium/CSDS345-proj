@@ -7,20 +7,20 @@
     (lambda (prog state)
         (cond   
             ;the code shall exit when reach to the end of program (if there is no return)   
-            [(null? prog) '()]
+            ;[(null? prog) '()]
             ;if the program demand return that 'return' is assigned some value in state instead of a default null,
             ;the program should return it.  
-            ;TODO: implement (lookup state key). We also need a set function for state, or namely a hashtable
-            ;[andrej]: I'm not sure if a hashtable is necessary, but it's a good idea to have a lookup function.
-            [(not (null? (lookup state return))) ]
+            [(not (null? (lookup state 'return))) (lookup state 'return)]
             [else (statementHandler (cdr prog) (M_state (car prog) state))]
             )))
 
 (define lookup
     (lambda (state key)
         (cond
-            [(null? state) (error "key not found")]
-            [(eq? (car (car state)) key) (cdr (car state))]
+            ;[Daniel]: it is normal for return not to find a value, so just return null here. Error should be handled
+            ;in declare and assign separately if they find null.  
+            [(null? state) null]
+            [(eq? (car (car state)) key) (car (cdr (car state)))]
             [else (lookup (cdr state) key)])
     )
 )
@@ -28,11 +28,11 @@
 (define M_state
     (lambda (statement state)
         (cond
-            [(isReturn? statement)          (return statement)]
-            [(isDeclaration? statement)     (declare statement)]
-            [(isAssignment? statement)      (assign statement)]
-            [(isIfStatement? statement)     (ifImp statement)]
-            [(isWhileStatement? statement)  (whileImp statement)]
+            [(isReturn? statement)          (return statement state)]
+            [(isDeclaration? statement)     (declare statement state)]
+            [(isAssignment? statement)      (assign statement state)]
+            [(isIfStatement? statement)     (ifImp statement state)]
+            [(isWhileStatement? statement)  (whileImp statement state)]
             [else (error "Invalid statement")]
     )))
 
@@ -48,7 +48,11 @@
     (lambda (statement)
         (eq? (car statement) 'return)))
 
-(define return cadr) ; a bit of a hack but who's counting
+;[Daniel]: In my view, the return function doesn't 'return' the value. Instead, it store the value into state 
+; and StatementHandler could return it in the next recurively call.  
+(define return 
+    (lambda (statement state)
+        (cons state (cons 'return M_value(statement state)))))
 
 (define isDeclaration?
     (lambda (statement)
@@ -60,11 +64,11 @@
 
 (define isAssignment?
     (lambda (statement)
-        (eq? (car statement) 'assign)))
+        (eq? (car statement) 'var)))
 
 (define assign
-    (lambda (statement)
-        (set (cadr statement) (M_value (caddr statement)))))
+    (lambda (statement state)
+        (set (cadr statement) (M_value (caddr statement) state))))
 
 (define isIfStatement?
     (lambda (statement)
@@ -87,30 +91,32 @@
                    (whileImp statement))
             '())))
 
-;TODO: implement all numeric operator here
 (define M_value
-    (lambda (statement)
+    (lambda (statement state)
         (cond
             [(number? statement)        statement]
-            [(eq? (car statement) '+)   (+ (M_value (cadr statement)) (M_value (caddr statement)))]
-            [(eq? (car statement) '-)   (- (M_value (cadr statement)) (M_value (caddr statement)))]
-            [(eq? (car statement) '*)   (* (M_value (cadr statement)) (M_value (caddr statement)))]
-            [(eq? (car statement) '/)   (quotient (M_value (cadr statement)) (M_value (caddr statement)))]
-            [(eq? (car statement) '%)   (remainder (M_value (cadr statement)) (M_value (caddr statement)))]
-            [else (error "")]
+            [(not (null? (lookup statement state))) (lookup statement state)];if it is a variable 
+            [(eq? (car statement) '+)   (+ (M_value (cadr statement) state) (M_value (caddr statement) state))]
+            [(eq? (car statement) '-)   (- (M_value (cadr statement) state) (M_value (caddr statement) state))]
+            [(eq? (car statement) '*)   (* (M_value (cadr statement) state) (M_value (caddr statement) state))]
+            [(eq? (car statement) '/)   (quotient (M_value (cadr statement) state) (M_value (caddr statement) state))]
+            [(eq? (car statement) '%)   (remainder (M_value (cadr statement) state) (M_value (caddr statement) state))]
+            [else (error "not a value")]
         )))
 
-;TODO: implement all logical operator here
+;TODO: we shouldn't return #t or #f but true or false here.
 (define M_boolean 
-    (lambda (statement)
+    (lambda (statement state)
         (cond
-            [(eq? (car statement) '>)  (> (M_value (cadr statement)) (M_value (caddr statement)))]
-            [(eq? (car statement) '>=) (>= (M_value (cadr statement)) (M_value (caddr statement)))]
-            [(eq? (car statement) '<)  (< (M_value (cadr statement)) (M_value (caddr statement)))]
-            [(eq? (car statement) '<=) (<= (M_value (cadr statement)) (M_value (caddr statement)))]
-            [(eq? (car statement) '=)  (= (M_value (cadr statement)) (M_value (caddr statement)))]
-            [(eq? (car statement) '!=) (not (= (M_value (cadr statement)) (M_value (caddr statement))))]
-            [else (error "")]
+            [(eq? (car statement) '>)  (> (M_value (cadr statement) state) (M_value (caddr statement) state))]
+            [(eq? (car statement) '>=) (>= (M_value (cadr statement) state) (M_value (caddr statement) state))]
+            [(eq? (car statement) '<)  (< (M_value (cadr statement) state) (M_value (caddr statement) state))]
+            [(eq? (car statement) '<=) (<= (M_value (cadr statement) state) (M_value (caddr statement) state))]
+            [(eq? (car statement) '=)  (= (M_value (cadr statement) state) (M_value (caddr statement) state))]
+            [(eq? (car statement) '!=) (not (= (M_value (cadr statement) state) (M_value (caddr statement) state)))]
+            [(eq? (car statement) '&&) (and (M_boolean (cadr statement) state) (M_boolean (caddr statement) state))]
+            [(eq? (car statement) '||) (or (M_boolean (cadr statement) state) (M_boolean (caddr statement) state))]
+            [else (error "not a boolean")]
         )))
 
 
