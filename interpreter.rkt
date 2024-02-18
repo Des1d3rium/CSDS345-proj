@@ -15,15 +15,13 @@
 
 (define lookup
     (lambda (state key)
-        (begin
             (display "Looking up key: ") (display key) (newline)
             (if (hash-has-key? state key)
                 (hash-ref state key)
-                '()))))
+                '())))
 
 (define M_state
     (lambda (statement state)
-        (begin
             (display "Running M_state with statement: ") (display statement) (newline)
             (cond
                 [(isReturn? statement)          (return statement state)]
@@ -32,46 +30,40 @@
                 [(isIfStatement? statement)     (ifImp statement state)]
                 [(isWhileStatement? statement)  (whileImp statement state)]
                 [else (error "Invalid statement")]
-            ))))
+            )))
 
 (define return 
     (lambda (statement state)
-        (begin
             (display "Running return with statement: ") (display statement) (newline)
-            (hash-set state 'return (M_value (cadr statement) state)))))
+            (hash-set state 'return (M_value (cadr statement) state))))
 
 (define declare
     (lambda (statement state)
-        (begin
             (display "Running declare with statement: ") (display statement) (newline)
-            (hash-set state (cadr statement) 0))))
+            (hash-set state (cadr statement) 0)))
 
 (define assign
     (lambda (statement state)
-        (begin
             (display "Running assign with statement: ") (display statement) (newline)
-            (hash-set state (cadr statement) (M_value (caddr statement) state)))))
+            (hash-set state (cadr statement) (M_value (caddr statement) state))))
 
 (define ifImp
     (lambda (statement state)
-        (begin
             (display "Running ifImp with statement: ") (display statement) (newline)
             (if (M_boolean (cadr statement) state)
                 (statementHandler (caddr statement) state)
-                (statementHandler (cadddr statement) state)))))
+                (statementHandler (cadddr statement) state))))
 
 (define whileImp
     (lambda (statement state)
-        (begin
             (display "Running whileImp with statement: ") (display statement) (newline)
             (if (M_boolean (cadr statement) state)
                 (begin (statementHandler (caddr statement) state)
                        (whileImp statement state))
-                '()))))
+                '())))
 
 (define M_value
     (lambda (statement state)
-        (begin
             (display "Running M_value with statement: ") (display statement) (newline)
             (cond
                 [(number? statement)        statement]
@@ -82,7 +74,7 @@
                 [(eq? (car statement) '/)   (quotient (M_value (cadr statement) state) (M_value (caddr statement) state))]
                 [(eq? (car statement) '%)   (remainder (M_value (cadr statement) state) (M_value (caddr statement) state))]
                 [else (lookup state statement)]
-            ))))
+            )))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;
