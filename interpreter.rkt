@@ -5,24 +5,24 @@
 (define statementHandler
     (lambda (prog state)
         (cond   
-            ;the code shall exit when reach to the end of program (if there is no return)   
-            ;[(null? prog) '()]
-            ;if the program demand return that 'return' is assigned some value in state instead of a default null,
-            ;the program should return it.  
-            [(not (null? (lookup state 'return))) (lookup state 'return)]
+            [(null? prog) state]
             [else (statementHandler (cdr prog) (M_state (car prog) state))]
             )))
 
 (define lookup
     (lambda (state key)
             (display "Looking up key: ") (display key) (newline)
-            (if (hash-has-key? state key)
-                (hash-ref state key)
-                '())))
+            (cond
+                [(null? state) null]
+                [(eq? (caar state) key) (cdar state)]
+                [else (lookup (cdr state) key)]
+            )
+))
 
 (define M_state
     (lambda (statement state)
             (display "Running M_state with statement: ") (display statement) (newline)
+            (display "State: ") (display state) (newline)
             (cond
                 [(isReturn? statement)          (return statement state)]
                 [(isDeclaration? statement)     (declare statement state)]
@@ -30,22 +30,38 @@
                 [(isIfStatement? statement)     (ifImp statement state)]
                 [(isWhileStatement? statement)  (whileImp statement state)]
                 [else (error "Invalid statement")]
-            )))
+            )
+))
 
 (define return 
     (lambda (statement state)
             (display "Running return with statement: ") (display statement) (newline)
-            (hash-set state 'return (M_value (cadr statement) state))))
+            (cons state (cons 'return M_value(statement state)))))
 
 (define declare
     (lambda (statement state)
             (display "Running declare with statement: ") (display statement) (newline)
-            (hash-set state (cadr statement) 0)))
+            ; If the variable has a value upon declaration, evaluate it and store it in the state.
+            ; If it's just declared, store it in the state with a 0 value.
+            ; If the variable already exists, throw an error.
+            (if (not (null? (lookup state (cadr statement))))
+                (error "Variable already declared")
+                (if (null? (cddr statement))
+                    (cons (cons (cadr statement) 0) state)
+                    (cons (cons (cadr statement) (M_value (caddr statement) state)) state)
+                ))))
 
-(define assign
-    (lambda (statement state)
-            (display "Running assign with statement: ") (display statement) (newline)
-            (hash-set state (cadr statement) (M_value (caddr statement) state))))
+(define (assign statement state)
+    (display "Running assign with statement: ") (display statement) (newline)
+    ; Lookup the variable in the state and change its value to the evaluated value.
+    ; If the variable doesn't exist, throw an error.
+    ; If the variable already exists, update its value.
+    (let ((var (cadr statement))
+                (val (M_value (caddr statement) state)))
+        (if (null? (lookup state var))
+                (error "Variable not declared")
+                (map (lambda (pair) (if (eq? (car pair) var) (cons var val) pair)) state))))
+
 
 (define ifImp
     (lambda (statement state)
@@ -55,16 +71,25 @@
                 (statementHandler (cadddr statement) state))))
 
 (define whileImp
-    (lambda (statement state)
-            (display "Running whileImp with statement: ") (display statement) (newline)
-            (if (M_boolean (cadr statement) state)
-                (begin (statementHandler (caddr statement) state)
-                       (whileImp statement state))
-                '())))
+        (lambda (statement state)
+                        (display "Running whileImp with statement: ") (display statement) (newline)
+                        (if (M_boolean (cadr statement) state)
+                            (begin
+                                (display "Condition is true, running whileImp with statement: ") (display (caddr statement)) (newline)
+                                (let ((new-state (statementHandler (cddr statement) state)))
+                                    (whileImp statement new-state))
+                            )
+                            (begin
+                                (display "Condition is false, returning state: ") (display state) (newline)
+                                state
+                            )
+                        )
+))
 
 (define M_value
     (lambda (statement state)
             (display "Running M_value with statement: ") (display statement) (newline)
+            (display "State: ") (display state) (newline)
             (cond
                 [(number? statement)        statement]
                 [(symbol? statement)        (lookup state statement)]
@@ -93,7 +118,7 @@
 
 (define isDeclaration?
     (lambda (statement)
-        (and (list? statement) (eq? (car statement) 'var))))
+        (eq? (car statement) 'var)))
 
 (define isAssignment?
     (lambda (statement)
@@ -110,6 +135,7 @@
 ;TODO: we shouldn't return #t or #f but true or false here.
 (define M_boolean 
     (lambda (statement state)
+        (display "Running M_boolean with statement: ") (display statement) (newline)
         (cond
             [(eq? (car statement) '>)  (> (M_value (cadr statement) state) (M_value (caddr statement) state))]
             [(eq? (car statement) '>=) (>= (M_value (cadr statement) state) (M_value (caddr statement) state))]
@@ -124,4 +150,4 @@
 
 
 (parser "../CSDS345/proj1/test1.txt")
-(statementHandler (parser "../CSDS345/proj1/test1.txt") (hash))
+(statementHandler (parser "../CSDS345/proj1/test1.txt") '())
