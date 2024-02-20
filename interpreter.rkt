@@ -68,14 +68,15 @@
     (cond
         [(null? (lookup state var)) (error "Variable is not declared")]
         [(eq? (caar state) var) (cdr state)]
-        [else (list (car state) (removeBinding (cdr state) var))] 
+        [else (cons (car state) (removeBinding (cdr state) var))] 
     ))
 
 (define (addBinding state var value)
     (append state (list(list var value))))
 
+;modify cadr and caddr to M_state
 (define (assign statement state)
-        (addBinding (removeBinding state (cadr statement)) (cadr statement) (caddr statement)))
+        (addBinding (removeBinding state (cadr statement)) (cadr statement) (M_value (caddr statement) state)))
 
 (define declare
     (lambda (statement state)
@@ -94,20 +95,11 @@
                 (M_state (cadddr statement) state))))
 
 (define whileImp
-        (lambda (statement state)
-                        (display "Running whileImp with statement: ") (display statement) (newline)
-                        (if (M_boolean (cadr statement) state)
-                            (begin
-                                (display "Condition is true, running whileImp with statement: ") (display (caddr statement)) (newline)
-                                (let ((new-state (statementHandler (cddr statement) state)))
-                                    (whileImp statement new-state))
-                            )
-                            (begin
-                                (display "Condition is false, returning state: ") (display state) (newline)
-                                state
-                            )
-                        )
-))
+    (lambda (statement state)
+        (display "Running whileImp with statement: ") (display statement) (newline)
+        (if (M_boolean (cadr statement) state)
+            (M_state statement (M_state (caddr statement) state))
+            state)))
 
 (define M_value
     (lambda (statement state)
