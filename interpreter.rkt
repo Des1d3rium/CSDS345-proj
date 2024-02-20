@@ -2,6 +2,8 @@
 
 (require "simpleParser.rkt") 
 
+;TODO: error check is not implemented well. 
+
 (define (statementHandler prog state)
         (cond   
             [(not (null? (lookup state 'return))) (lookup state 'return)]
@@ -11,9 +13,9 @@
 ; an example of state is '((x 10) (y 9)). caar access 'x, and cadar access '10.
 (define (lookup state key)
             (cond
-                [(null? state) null]
-                [(eq? (caar state) key) (cadar state)]
-                [else (lookup (cdr state) key)]
+                [(null? state)                          null]
+                [(eq? (caar state) key)                 (cadar state)]
+                [else                                   (lookup (cdr state) key)]
             ))
 
 (define (isReturn? statement)
@@ -39,14 +41,13 @@
         [else 
             (if (M_value (cadr statement) state)
                 (append state (list (list 'return 'true)))
-                (append state (list (list 'return 'false)))
-)]))
+                (append state (list (list 'return 'false))))]))
 
 (define (removeBinding state var)
     (cond
-        [(null? (lookup state var)) (error "Variable is not declared")]
-        [(eq? (caar state) var) (cdr state)]
-        [else (cons (car state) (removeBinding (cdr state) var))]
+        [(null? (lookup state var))                (error "Variable is not declared")]
+        [(eq? (caar state) var)                    (cdr state)]
+        [else                                      (cons (car state) (removeBinding (cdr state) var))]
 ))
 
 (define (addBinding state var value)
@@ -60,7 +61,7 @@
                 (error "Variable already declared")
                 ;whether the variable is given a initial value
                 (if (null? (cddr statement))
-                    (addBinding state (cadr statement) 0)
+                    (addBinding state (cadr statement) 'value_undefined)
                     (addBinding state (cadr statement) (M_value (caddr statement) state))
                 )))
 
@@ -89,10 +90,13 @@
 
 (define (M_value statement state)
         (cond
-            [(number? statement)        statement]
-            [(symbol? statement)        (lookup state statement)]
+            [(number? statement)                                    statement]
+            [(eq? statement 'false) #f]
+            [(eq? statement 'true)  #t]
+            [(symbol? statement)                                    (lookup state statement)]
             ;special condition when '- as negative sign
             [(and (eq? (car statement) '-) (null? (cddr statement))) (* (M_value (cadr statement) state) -1)]
+
             [(eq? (car statement) '+)   (+ (M_value (cadr statement) state) (M_value (caddr statement) state))]  
             [(eq? (car statement) '-)   (- (M_value (cadr statement) state) (M_value (caddr statement) state))]
             [(eq? (car statement) '*)   (* (M_value (cadr statement) state) (M_value (caddr statement) state))]
@@ -103,6 +107,7 @@
             [(eq? (car statement) '<)   (< (M_value (cadr statement) state) (M_value (caddr statement) state))]
             [(eq? (car statement) '<=)  (<= (M_value (cadr statement) state) (M_value (caddr statement) state))]
             [(eq? (car statement) '!=)  (not (= (M_value (cadr statement) state) (M_value (caddr statement) state)))]
+            [(eq? (car statement) '!)   (not (M_value (cadr statement) state))]
             [(eq? (car statement) '&&)  (and (M_value (cadr statement) state) (M_value (caddr statement) state))]
             [(eq? (car statement) '||)  (or (M_value (cadr statement) state) (M_value (caddr statement) state))]
             [(eq? (car statement) '==)  (eq? (M_value (cadr statement) state) (M_value (caddr statement) state))]
