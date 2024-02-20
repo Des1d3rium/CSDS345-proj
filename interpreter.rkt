@@ -41,20 +41,26 @@
         (and (list? statement) (eq? (car statement) 'while))))
 
 (define (return statement state)
-    (append state (list (list 'return (M_value (cadr statement) state)))))
+    (cond
+        [(number? (M_value (cadr statement) state)) (append state (list (list 'return (M_value (cadr statement) state))))]
+        [else 
+            (if (M_value (cadr statement) state)
+                (append state (list (list 'return 'true)))
+                (append state (list (list 'return 'false)))
+)]))
 
 (define (removeBinding state var)
     (cond
         [(null? (lookup state var)) (error "Variable is not declared")]
         [(eq? (caar state) var) (cdr state)]
         [else (cons (car state) (removeBinding (cdr state) var))]
-    ))
+))
 
 (define (addBinding state var value)
     (append state (list(list var value))))
 
 (define (assign statement state)
-        (addBinding (removeBinding state (cadr statement)) (cadr statement) (M_value (caddr statement) state)))
+    (addBinding (removeBinding state (cadr statement)) (cadr statement) (M_value (caddr statement) state)))
 
 (define declare
     (lambda (statement state)
@@ -68,14 +74,14 @@
 (define ifImp
     (lambda (statement state)
             (display "Running ifImp with statement: ") (display statement) (newline)
-            (if (M_boolean (cadr statement) state)
+            (if (M_value (cadr statement) state)
                 (M_state (caddr statement) state)
                 (M_state (cadddr statement) state))))
 
 (define whileImp
     (lambda (statement state)
         (display "Running whileImp with statement: ") (display statement) (newline)
-        (if (M_boolean (cadr statement) state)
+        (if (M_value (cadr statement) state)
             (M_state statement (M_state (caddr statement) state))
             state)))
 
@@ -92,32 +98,29 @@
                 [else (error "Invalid statement")]
             )))
 
-(define M_value
+(define M_value 
     (lambda (statement state)
-            (display "Running M_value with statement: ") (display statement) (newline)
-            (display "State: ") (display state) (newline)
-            (cond
-                [(number? statement)        statement]
-                [(symbol? statement)        (lookup state statement)]
-                [(eq? (car statement) '+)   (+ (M_value (cadr statement) state) (M_value (caddr statement) state))]
-                [(eq? (car statement) '-)   (- (M_value (cadr statement) state) (M_value (caddr statement) state))]
-                [(eq? (car statement) '*)   (* (M_value (cadr statement) state) (M_value (caddr statement) state))]
-                [(eq? (car statement) '/)   (quotient (M_value (cadr statement) state) (M_value (caddr statement) state))]
-                [(eq? (car statement) '%)   (remainder (M_value (cadr statement) state) (M_value (caddr statement) state))]
-                [else (lookup state statement)]
-            )))
-
-;TODO: we shouldn't return #t or #f but true or false here.
-(define M_boolean 
-    (lambda (statement state)
-        (display "Running M_boolean with statement: ") (display statement) (newline)
+        (display "Running M_value with statement: ") (display statement) (newline)
         (cond
-            [(eq? (car statement) '>)  (> (M_value (cadr statement) state) (M_value (caddr statement) state))]
-            [(eq? (car statement) '>=) (>= (M_value (cadr statement) state) (M_value (caddr statement) state))]
-            [(eq? (car statement) '<)  (< (M_value (cadr statement) state) (M_value (caddr statement) state))]
-            [(eq? (car statement) '<=) (<= (M_value (cadr statement) state) (M_value (caddr statement) state))]
-            [(eq? (car statement) '!=) (not (= (M_value (cadr statement) state) (M_value (caddr statement) state)))]
-            [(eq? (car statement) '&&) (and (M_boolean (cadr statement) state) (M_boolean (caddr statement) state))]
-            [(eq? (car statement) '||) (or (M_boolean (cadr statement) state) (M_boolean (caddr statement) state))]
-            [else (error "not a boolean")]
+            [(number? statement)        statement]
+            [(symbol? statement)        (lookup state statement)]
+            [(eq? (car statement) '+)   (+ (M_value (cadr statement) state) (M_value (caddr statement) state))]
+            [(eq? (car statement) '-)   (- (M_value (cadr statement) state) (M_value (caddr statement) state))]
+            [(eq? (car statement) '*)   (* (M_value (cadr statement) state) (M_value (caddr statement) state))]
+            [(eq? (car statement) '/)   (quotient (M_value (cadr statement) state) (M_value (caddr statement) state))]
+            [(eq? (car statement) '%)   (remainder (M_value (cadr statement) state) (M_value (caddr statement) state))]
+            [(eq? (car statement) '>)   (> (M_value (cadr statement) state) (M_value (caddr statement) state))]
+            [(eq? (car statement) '>=)  (>= (M_value (cadr statement) state) (M_value (caddr statement) state))]
+            [(eq? (car statement) '<)   (< (M_value (cadr statement) state) (M_value (caddr statement) state))]
+            [(eq? (car statement) '<=)  (<= (M_value (cadr statement) state) (M_value (caddr statement) state))]
+            [(eq? (car statement) '!=)  (not (= (M_value (cadr statement) state) (M_value (caddr statement) state)))]
+            [(eq? (car statement) '&&)  (and (M_value (cadr statement) state) (M_value (caddr statement) state))]
+            [(eq? (car statement) '||)  (or (M_value (cadr statement) state) (M_value (caddr statement) state))]
+            [(eq? (car statement) '==)  (eq? (M_value (cadr statement) state) (M_value (caddr statement) state))]
+            [else (error "not a vaild value")]
         )))
+
+(define (execute filename)
+    (statementHandler (parser "test.java") '()))
+
+(statementHandler (parser "test.java") '())
