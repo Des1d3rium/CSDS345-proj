@@ -2,7 +2,8 @@
 
 (require "simpleParser.rkt") 
 
-;TODO: error check is not implemented well. 
+;TODO: maybe refactor M_value. It is too long.
+;TODO: lookup is called too many times. 
 
 (define (statementHandler prog state)
         (cond   
@@ -58,7 +59,7 @@
 
 (define (declare statement state)
             (if (not (null? (lookup state (cadr statement))))
-                (error "Variable already declared")
+                (error "Variable is already declared")
                 ;whether the variable is given a initial value
                 (if (null? (cddr statement))
                     (addBinding state (cadr statement) 'value_undefined)
@@ -90,12 +91,20 @@
 
 (define (M_value statement state)
         (cond
-            [(number? statement)                                    statement]
-            [(eq? statement 'false) #f]
-            [(eq? statement 'true)  #t]
-            [(symbol? statement)                                    (lookup state statement)]
-            ;special condition when '- as negative sign
-            [(and (eq? (car statement) '-) (null? (cddr statement))) (* (M_value (cadr statement) state) -1)]
+            [(number? statement)                                        statement]
+            [(eq? statement 'false)                                     #f]
+            [(eq? statement 'true)                                      #t]
+
+            ;error check: when a variale is not assigned a value
+            [(eq? (lookup state statement) 'value_undefined)            (error "Variable is not assigned a value")]
+
+            ;error check: when a variable is not declared (it is a symbol and not appeared in state)
+            [(and (symbol? statement) (null? (lookup state statement))) (error "Variable is not declared")]
+
+            [(symbol? statement)                                        (lookup state statement)]
+
+            ;special condition when '- acts as negative sign
+            [(and (eq? (car statement) '-) (null? (cddr statement)))    (* (M_value (cadr statement) state) -1)]
 
             [(eq? (car statement) '+)   (+ (M_value (cadr statement) state) (M_value (caddr statement) state))]  
             [(eq? (car statement) '-)   (- (M_value (cadr statement) state) (M_value (caddr statement) state))]
