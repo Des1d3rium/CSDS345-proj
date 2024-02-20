@@ -16,8 +16,7 @@
                 [(null? state) null]
                 [(eq? (caar state) key) (cdar state)]
                 [else (lookup (cdr state) key)]
-            )
-))
+            )))
 
 (define M_state
     (lambda (statement state)
@@ -38,30 +37,27 @@
             (display "Running return with statement: ") (display statement) (newline)
             (cons state (cons 'return M_value(statement state)))))
 
+(define (removeBinding state var)
+    (cond
+        [(null? state) (error "Variable is not declared")]
+        [(eq? (caar state) var) (cdr state)]
+        [else (list (car state) (removeBinding (cdr state) var))] 
+    ))
+
+(define (addBinding state var value)
+    (append state (list(list var value))))
+
+(define (assign statement state)
+        (addBinding (removeBinding state (cadr statement)) (cadr statement) (caddr statement)))
+
 (define declare
     (lambda (statement state)
-            (display "Running declare with statement: ") (display statement) (newline)
-            ; If the variable has a value upon declaration, evaluate it and store it in the state.
-            ; If it's just declared, store it in the state with a 0 value.
-            ; If the variable already exists, throw an error.
             (if (not (null? (lookup state (cadr statement))))
                 (error "Variable already declared")
                 (if (null? (cddr statement))
-                    (cons (cons (cadr statement) 0) state)
-                    (cons (cons (cadr statement) (M_value (caddr statement) state)) state)
+                    (addBinding state (cadr statement) 0)
+                    (addBinding state (cadr statement) (M_value (caddr statement) state))
                 ))))
-
-(define (assign statement state)
-    (display "Running assign with statement: ") (display statement) (newline)
-    ; Lookup the variable in the state and change its value to the evaluated value.
-    ; If the variable doesn't exist, throw an error.
-    ; If the variable already exists, update its value.
-    (let ((var (cadr statement))
-                (val (M_value (caddr statement) state)))
-        (if (null? (lookup state var))
-                (error "Variable not declared")
-                (map (lambda (pair) (if (eq? (car pair) var) (cons var val) pair)) state))))
-
 
 (define ifImp
     (lambda (statement state)
@@ -141,13 +137,8 @@
             [(eq? (car statement) '>=) (>= (M_value (cadr statement) state) (M_value (caddr statement) state))]
             [(eq? (car statement) '<)  (< (M_value (cadr statement) state) (M_value (caddr statement) state))]
             [(eq? (car statement) '<=) (<= (M_value (cadr statement) state) (M_value (caddr statement) state))]
-            [(eq? (car statement) '=)  (assign (cadr statement) (M_value (caddr statement) state)) (M_value (cadr statement) state)]
             [(eq? (car statement) '!=) (not (= (M_value (cadr statement) state) (M_value (caddr statement) state)))]
             [(eq? (car statement) '&&) (and (M_boolean (cadr statement) state) (M_boolean (caddr statement) state))]
             [(eq? (car statement) '||) (or (M_boolean (cadr statement) state) (M_boolean (caddr statement) state))]
             [else (error "not a boolean")]
         )))
-
-
-(parser "../CSDS345/proj1/test1.txt")
-(statementHandler (parser "../CSDS345/proj1/test1.txt") '())
