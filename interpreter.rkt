@@ -1,5 +1,7 @@
 #lang racket
 
+(require "simpleParser.rkt") 
+
 (define statementHandler
     (lambda (prog state)
         (cond   
@@ -15,14 +17,6 @@
                 [(eq? (caar state) key) (cadar state)]
                 [else (lookup (cdr state) key)]
             )))
-            
-;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;
-;
-;  Functions for each statement
-;
-;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define isReturn?
     (lambda (statement)
@@ -30,7 +24,6 @@
 
 ;[Daniel]: In my view, the return function doesn't 'return' the value. Instead, it store the value into state 
 ; and StatementHandler could return it in the next recurively call.  
-
 (define isDeclaration?
     (lambda (statement)
         (eq? (car statement) 'var)))
@@ -47,34 +40,19 @@
     (lambda (statement)
         (and (list? statement) (eq? (car statement) 'while))))
 
-(define M_state
-    (lambda (statement state)
-            (display "Running M_state with statement: ") (display statement) (newline)
-            (display "State: ") (display state) (newline)
-            (cond
-                [(isReturn? statement)          (return statement state)]
-                [(isDeclaration? statement)     (declare statement state)]
-                [(isAssignment? statement)      (assign statement state)]
-                [(isIfStatement? statement)     (ifImp statement state)]
-                [(isWhileStatement? statement)  (whileImp statement state)]
-                [else (error "Invalid statement")]
-            )
-))
-
 (define (return statement state)
-            (append state (list (list 'return (M_value (cadr statement) state)))))
+    (append state (list (list 'return (M_value (cadr statement) state)))))
 
 (define (removeBinding state var)
     (cond
         [(null? (lookup state var)) (error "Variable is not declared")]
         [(eq? (caar state) var) (cdr state)]
-        [else (cons (car state) (removeBinding (cdr state) var))] 
+        [else (cons (car state) (removeBinding (cdr state) var))]
     ))
 
 (define (addBinding state var value)
     (append state (list(list var value))))
 
-;modify cadr and caddr to M_state
 (define (assign statement state)
         (addBinding (removeBinding state (cadr statement)) (cadr statement) (M_value (caddr statement) state)))
 
@@ -101,6 +79,19 @@
             (M_state statement (M_state (caddr statement) state))
             state)))
 
+(define M_state
+    (lambda (statement state)
+            (display "Running M_state with statement: ") (display statement) (newline)
+            (display "State: ") (display state) (newline)
+            (cond
+                [(isReturn? statement)          (return statement state)]
+                [(isDeclaration? statement)     (declare statement state)]
+                [(isAssignment? statement)      (assign statement state)]
+                [(isIfStatement? statement)     (ifImp statement state)]
+                [(isWhileStatement? statement)  (whileImp statement state)]
+                [else (error "Invalid statement")]
+            )))
+
 (define M_value
     (lambda (statement state)
             (display "Running M_value with statement: ") (display statement) (newline)
@@ -115,9 +106,6 @@
                 [(eq? (car statement) '%)   (remainder (M_value (cadr statement) state) (M_value (caddr statement) state))]
                 [else (lookup state statement)]
             )))
-
-
-
 
 ;TODO: we shouldn't return #t or #f but true or false here.
 (define M_boolean 
