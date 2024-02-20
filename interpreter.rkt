@@ -2,43 +2,36 @@
 
 (require "simpleParser.rkt") 
 
-(define statementHandler
-    (lambda (prog state)
+(define (statementHandler prog state)
         (cond   
             [(not (null? (lookup state 'return))) (lookup state 'return)]
             [else (statementHandler (cdr prog) (M_state (car prog) state))]
-            )))
+            ))
 
-(define lookup
-    (lambda (state key)
-            (display "Looking up key: ") (display key) (newline)
+; an example of state is '((x 10) (y 9)). caar access 'x, and cadar access '10.
+(define (lookup state key)
             (cond
                 [(null? state) null]
                 [(eq? (caar state) key) (cadar state)]
                 [else (lookup (cdr state) key)]
-            )))
+            ))
 
-(define isReturn?
-    (lambda (statement)
-        (eq? (car statement) 'return)))
+(define (isReturn? statement)
+        (eq? (car statement) 'return))
 
 ;[Daniel]: In my view, the return function doesn't 'return' the value. Instead, it store the value into state 
 ; and StatementHandler could return it in the next recurively call.  
-(define isDeclaration?
-    (lambda (statement)
-        (eq? (car statement) 'var)))
+(define (isDeclaration? statement)
+        (eq? (car statement) 'var))
 
-(define isAssignment?
-    (lambda (statement)
-        (eq? (car statement) '=)))
+(define (isAssignment? statement)
+        (eq? (car statement) '=))
 
-(define isIfStatement?
-    (lambda (statement)
-        (and (list? statement) (eq? (car statement) 'if))))
+(define (isIfStatement? statement)
+        (and (list? statement) (eq? (car statement) 'if)))
 
-(define isWhileStatement?
-    (lambda (statement)
-        (and (list? statement) (eq? (car statement) 'while))))
+(define (isWhileStatement? statement)
+        (and (list? statement) (eq? (car statement) 'while)))
 
 (define (return statement state)
     (cond
@@ -62,33 +55,29 @@
 (define (assign statement state)
     (addBinding (removeBinding state (cadr statement)) (cadr statement) (M_value (caddr statement) state)))
 
-(define declare
-    (lambda (statement state)
+(define (declare statement state)
             (if (not (null? (lookup state (cadr statement))))
                 (error "Variable already declared")
+                ;whether the variable is given a initial value
                 (if (null? (cddr statement))
                     (addBinding state (cadr statement) 0)
                     (addBinding state (cadr statement) (M_value (caddr statement) state))
-                ))))
+                )))
 
-(define ifImp
-    (lambda (statement state)
-            (display "Running ifImp with statement: ") (display statement) (newline)
+(define (ifImp statement state)
             (if (M_value (cadr statement) state)
                 (M_state (caddr statement) state)
-                (M_state (cadddr statement) state))))
+                ;whether the third argument 'else' exist
+                (if (null? (cdddr statement)) 
+                    state
+                    (M_state (cadddr statement) state))))
 
-(define whileImp
-    (lambda (statement state)
-        (display "Running whileImp with statement: ") (display statement) (newline)
+(define (whileImp statement state)
         (if (M_value (cadr statement) state)
             (M_state statement (M_state (caddr statement) state))
-            state)))
+            state))
 
-(define M_state
-    (lambda (statement state)
-            (display "Running M_state with statement: ") (display statement) (newline)
-            (display "State: ") (display state) (newline)
+(define (M_state statement state)
             (cond
                 [(isReturn? statement)          (return statement state)]
                 [(isDeclaration? statement)     (declare statement state)]
@@ -96,15 +85,15 @@
                 [(isIfStatement? statement)     (ifImp statement state)]
                 [(isWhileStatement? statement)  (whileImp statement state)]
                 [else (error "Invalid statement")]
-            )))
+            ))
 
-(define M_value 
-    (lambda (statement state)
-        (display "Running M_value with statement: ") (display statement) (newline)
+(define (M_value statement state)
         (cond
             [(number? statement)        statement]
             [(symbol? statement)        (lookup state statement)]
-            [(eq? (car statement) '+)   (+ (M_value (cadr statement) state) (M_value (caddr statement) state))]
+            ;special condition when '- as negative sign
+            [(and (eq? (car statement) '-) (null? (cddr statement))) (* (M_value (cadr statement) state) -1)]
+            [(eq? (car statement) '+)   (+ (M_value (cadr statement) state) (M_value (caddr statement) state))]  
             [(eq? (car statement) '-)   (- (M_value (cadr statement) state) (M_value (caddr statement) state))]
             [(eq? (car statement) '*)   (* (M_value (cadr statement) state) (M_value (caddr statement) state))]
             [(eq? (car statement) '/)   (quotient (M_value (cadr statement) state) (M_value (caddr statement) state))]
@@ -118,7 +107,7 @@
             [(eq? (car statement) '||)  (or (M_value (cadr statement) state) (M_value (caddr statement) state))]
             [(eq? (car statement) '==)  (eq? (M_value (cadr statement) state) (M_value (caddr statement) state))]
             [else (error "not a vaild value")]
-        )))
+        ))
 
 (define (execute filename)
     (statementHandler (parser "test.java") '()))

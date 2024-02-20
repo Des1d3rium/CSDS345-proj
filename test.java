@@ -1,1 +1,4 @@
-return 6 * (8 + (5 % 3)) / 11 - 9;
+var x;
+var y;
+x = x + y;
+return x;
