@@ -1,11 +1,9 @@
 #lang racket
 
-(require "simpleParser.rkt")
-
 (define statementHandler
     (lambda (prog state)
         (cond   
-            [(null? prog) state]
+            [(not (null? (lookup state 'return))) (lookup state 'return)]
             [else (statementHandler (cdr prog) (M_state (car prog) state))]
             )))
 
@@ -14,9 +12,40 @@
             (display "Looking up key: ") (display key) (newline)
             (cond
                 [(null? state) null]
-                [(eq? (caar state) key) (cdar state)]
+                [(eq? (caar state) key) (cadar state)]
                 [else (lookup (cdr state) key)]
             )))
+            
+;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;
+;
+;  Functions for each statement
+;
+;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(define isReturn?
+    (lambda (statement)
+        (eq? (car statement) 'return)))
+
+;[Daniel]: In my view, the return function doesn't 'return' the value. Instead, it store the value into state 
+; and StatementHandler could return it in the next recurively call.  
+
+(define isDeclaration?
+    (lambda (statement)
+        (eq? (car statement) 'var)))
+
+(define isAssignment?
+    (lambda (statement)
+        (eq? (car statement) '=)))
+
+(define isIfStatement?
+    (lambda (statement)
+        (and (list? statement) (eq? (car statement) 'if))))
+
+(define isWhileStatement?
+    (lambda (statement)
+        (and (list? statement) (eq? (car statement) 'while))))
 
 (define M_state
     (lambda (statement state)
@@ -32,14 +61,12 @@
             )
 ))
 
-(define return 
-    (lambda (statement state)
-            (display "Running return with statement: ") (display statement) (newline)
-            (cons state (cons 'return M_value(statement state)))))
+(define (return statement state)
+            (append state (list (list 'return (M_value (cadr statement) state)))))
 
 (define (removeBinding state var)
     (cond
-        [(null? state) (error "Variable is not declared")]
+        [(null? (lookup state var)) (error "Variable is not declared")]
         [(eq? (caar state) var) (cdr state)]
         [else (list (car state) (removeBinding (cdr state) var))] 
     ))
@@ -63,8 +90,8 @@
     (lambda (statement state)
             (display "Running ifImp with statement: ") (display statement) (newline)
             (if (M_boolean (cadr statement) state)
-                (statementHandler (caddr statement) state)
-                (statementHandler (cadddr statement) state))))
+                (M_state (caddr statement) state)
+                (M_state (cadddr statement) state))))
 
 (define whileImp
         (lambda (statement state)
@@ -97,36 +124,8 @@
                 [else (lookup state statement)]
             )))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;
-;
-;  Functions for each statement
-;
-;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define isReturn?
-    (lambda (statement)
-        (eq? (car statement) 'return)))
 
-;[Daniel]: In my view, the return function doesn't 'return' the value. Instead, it store the value into state 
-; and StatementHandler could return it in the next recurively call.  
-
-(define isDeclaration?
-    (lambda (statement)
-        (eq? (car statement) 'var)))
-
-(define isAssignment?
-    (lambda (statement)
-        (eq? (car statement) '=)))
-
-(define isIfStatement?
-    (lambda (statement)
-        (and (list? statement) (eq? (car statement) 'if))))
-
-(define isWhileStatement?
-    (lambda (statement)
-        (and (list? statement) (eq? (car statement) 'while))))
 
 ;TODO: we shouldn't return #t or #f but true or false here.
 (define M_boolean 
