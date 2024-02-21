@@ -1,8 +1,11 @@
 #lang racket
 
+; Simple Language Interpreter Project
+; Andrej Antunovikj, Daniel Lin, Eric Chen
+; CSDS 345 - Programming Language Concepts
+
 (require "simpleParser.rkt") 
 
-;TODO: maybe refactor M_value. It is too long.
 ;TODO: lookup is called too many times. 
 
 (define (statementHandler prog state)
