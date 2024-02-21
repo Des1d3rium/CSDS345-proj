@@ -2,17 +2,16 @@
 
 (require "simpleParser.rkt") 
 
-;TODO: maybe refactor M_value. It is too long.
+; Simple Language Interpreter Project
+; Andrej Antunovikj, Daniel Lin, Eric Chen
+; CSDS 345 - Programming Language Concepts
+
 ;TODO: lookup is called too many times. 
 
 (define (statementHandler prog state)
         (cond   
             [(not (null? (lookup state 'return))) (lookup state 'return)]
-            [else (begin
-                (display "State: ") (display state) (display "\n")
-                (display "Running: ") (display (car prog)) (display "\n")
-                (statementHandler (cdr prog) (M_state (car prog) state))
-            )]
+            [else (statementHandler (cdr prog) (M_state (car prog) state))]
             ))
 
 ; an example of state is '((x 10) (y 9)). caar access 'x, and cadar access '10.
@@ -71,17 +70,17 @@
                 )))
 
 (define (ifImp statement state)
-    (if (if (symbol? (cadr statement)) (M_value (cadr statement) state) (M_boolean (cadr statement) state))
-        (M_state (caddr statement) state)
-        ;whether the third argument 'else' exist
-        (if (null? (cdddr statement)) 
-            state
-            (M_state (cadddr statement) state))))
+            (if (M_value (cadr statement) state)
+                (M_state (caddr statement) state)
+                ;whether the third argument 'else' exist
+                (if (null? (cdddr statement)) 
+                    state
+                    (M_state (cadddr statement) state))))
 
 (define (whileImp statement state)
-    (if (if (symbol? (cadr statement)) (M_value (cadr statement) state) (M_boolean (cadr statement) state))
-        (M_state statement (M_state (caddr statement) state))
-        state))
+        (if (M_value (cadr statement) state)
+            (M_state statement (M_state (caddr statement) state))
+            state))
 
 (define (M_state statement state)
             (cond
@@ -99,10 +98,10 @@
             [(eq? statement 'false)                                     #f]
             [(eq? statement 'true)                                      #t]
 
-            ;error check: when a variable is not assigned a value
+            ;error check: when a variale is not assigned a value
             [(eq? (lookup state statement) 'value_undefined)            (error "Variable is not assigned a value")]
 
-            ;error check: when a variable is not declared (it is a symbol and does not appear in state)
+            ;error check: when a variable is not declared (it is a symbol and not appeared in state)
             [(and (symbol? statement) (null? (lookup state statement))) (error "Variable is not declared")]
 
             [(symbol? statement)                                        (lookup state statement)]
@@ -115,11 +114,6 @@
             [(eq? (car statement) '*)   (* (M_value (cadr statement) state) (M_value (caddr statement) state))]
             [(eq? (car statement) '/)   (quotient (M_value (cadr statement) state) (M_value (caddr statement) state))]
             [(eq? (car statement) '%)   (remainder (M_value (cadr statement) state) (M_value (caddr statement) state))]
-            [else (error "not a valid value")]
-        ))
-
-(define (M_boolean statement state)
-        (cond
             [(eq? (car statement) '>)   (> (M_value (cadr statement) state) (M_value (caddr statement) state))]
             [(eq? (car statement) '>=)  (>= (M_value (cadr statement) state) (M_value (caddr statement) state))]
             [(eq? (car statement) '<)   (< (M_value (cadr statement) state) (M_value (caddr statement) state))]
@@ -129,7 +123,7 @@
             [(eq? (car statement) '&&)  (and (M_value (cadr statement) state) (M_value (caddr statement) state))]
             [(eq? (car statement) '||)  (or (M_value (cadr statement) state) (M_value (caddr statement) state))]
             [(eq? (car statement) '==)  (eq? (M_value (cadr statement) state) (M_value (caddr statement) state))]
-            [else (error "not a valid boolean expression")]
+            [else (error "not a vaild value")]
         ))
 
 (define (execute filename)
