@@ -6,10 +6,6 @@
 
 (require "simpleParser.rkt") 
 
-; Simple Language Interpreter Project
-; Andrej Antunovikj, Daniel Lin, Eric Chen
-; CSDS 345 - Programming Language Concepts
-
 ;TODO: lookup is called too many times. 
 
 (define (statementHandler prog state)
