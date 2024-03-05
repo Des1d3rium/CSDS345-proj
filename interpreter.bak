@@ -50,13 +50,12 @@
     (cond
         [(number? (M_value (cadr statement) state)) 
             ;(list state (list (list 'return (M_value (cadr statement) state))))]
-            (list (addBinding (car state) 'return 0) (addBinding (cadr state) (M_value (cadr statement) state) 0))]
-            ;(list (list (car state) 'return) (list (cadr state) (M_value (cadr statement) state)))]
+            (list (list (car state) 'return) (list (cadr state) (M_value (cadr statement) state)))]
         [else 
             (if (M_value (cadr statement) state)
                 ;(append state (list (list 'return 'true)))
-                (list (addBinding (car state) 'return 0) (addBinding (cadr state) 'true 0))
-                (list (addBinding (car state) 'return 0) (addBinding (cadr state) 'false 0)))]))
+                (list (list (car state) 'return) (list (cadr state) 'true))
+                (list (list (car state) 'return) (list (cadr state) 'false)))]))
 
 ; [Daniel]: now it return the index of key. This is passed as a parameter in addBinding to remove and re-add binding.
 (define (searchBinding state_key var)
@@ -67,8 +66,9 @@
 
 (define (addBinding state value k)
     (cond
-        [(eq? k 0)                         (cons value state))]
-        [else                              (cons (car state) (addBinding (cdr state) value (- k 1)))]
+        [(null? state)                     (error "Key not found in adding binding.")]
+        [(eq? k 0)                         (list state value)]
+        [else                              (cons (addBinding (cdr state) value (- k 1)))]
     ))
 
 (define (assign statement state)
@@ -82,10 +82,8 @@
                 (error "Variable is already declared")
                 ;whether the variable is given a initial value
                 (if (null? (cddr statement))
-                    ;(addBinding state (cadr statement) 'value_undefined 0)
-                    (list (addBinding (car state) (cadr statement) 0) (addBinding (cadr state) 'value_undefined 0))
-                    ;(addBinding state (cadr statement) (M_value (caddr statement) state) 0)
-                    (list (addBinding (car state) (cadr statement) 0) (addBinding (cadr state) (caddr statement) 0))
+                    (addBinding state (cadr statement) 'value_undefined 0)
+                    (addBinding state (cadr statement) (M_value (caddr statement) state) (searchBinding (car state) (cadr statement)))
                 )))
 
 (define (ifImp statement state)
@@ -146,6 +144,6 @@
         ))
 
 (define (execute filename)
-    (statementHandler (parser filename) '(()())))
+    (statementHandler (parser "test.java") '()))
 
-(statementHandler (parser "test.java") '(()()))
+(statementHandler (parser "test.java") '())
