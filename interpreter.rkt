@@ -48,45 +48,43 @@
 
 (define (return statement state)
     (cond
-        [(number? (M_value (cadr statement) state)) 
-            ;(list state (list (list 'return (M_value (cadr statement) state))))]
-            (list (addBinding (car state) 'return 0) (addBinding (cadr state) (M_value (cadr statement) state) 0))]
-            ;(list (list (car state) 'return) (list (cadr state) (M_value (cadr statement) state)))]
+        [(number? (M_value (cadr statement) state)) (addBinding state 'return (M_value (cadr statement) state) 'front)]
         [else 
             (if (M_value (cadr statement) state)
-                ;(append state (list (list 'return 'true)))
-                (list (addBinding (car state) 'return 0) (addBinding (cadr state) 'true 0))
-                (list (addBinding (car state) 'return 0) (addBinding (cadr state) 'false 0)))]))
+                (addBinding state 'return 'true  'front)
+                (addBinding state 'return 'false 'front)
+                )]))
 
 ; [Daniel]: now it return the index of key. This is passed as a parameter in addBinding to remove and re-add binding.
 (define (searchBinding state_key var)
     (cond
         [(null? state_key)                 (error "Key not found in removing binding.")]
-        [(eq? (car state_key) var)         1]
+        [(eq? (car state_key) var)         0]
         [else                              (+ 1 (searchBinding (cdr state_key) var))]))
 
-(define (addBinding state value k)
+(define (addBinding state key val pos)
+    (list (addBinding-rec (car state) key pos) (addBinding-rec (cadr state) val pos)))
+
+(define (addBinding-rec state value k)
     (cond
-        [(eq? k 0)                         (cons value state))]
-        [else                              (cons (car state) (addBinding (cdr state) value (- k 1)))]
+        [(eq? k 'front)                         (cons value state)]
+        [(and (eq? k 0) (null? state))          (cons value '())]
+        [(eq? k 0)                              (cons value (cdr state))]
+        [else                                   (cons (car state) (addBinding-rec (cdr state) value (- k 1)))]
     ))
 
 (define (assign statement state)
     (if (null? (lookup state (cadr statement)))                
         (error "Variable is not declared")
-        (list (addBinding (car state) (cadr statement) (searchBinding (car state) (cadr statement))) 
-            (addBinding (cadr state) (M_value (caddr statement) state) (searchBinding (car state) (cadr statement))))))
+        (addBinding state (cadr statement) (M_value (caddr statement) state) (searchBinding (car state) (cadr statement)))))
 
 (define (declare statement state)
             (if (not (null? (lookup state (cadr statement))))
                 (error "Variable is already declared")
                 ;whether the variable is given a initial value
                 (if (null? (cddr statement))
-                    ;(addBinding state (cadr statement) 'value_undefined 0)
-                    (list (addBinding (car state) (cadr statement) 0) (addBinding (cadr state) 'value_undefined 0))
-                    ;(addBinding state (cadr statement) (M_value (caddr statement) state) 0)
-                    (list (addBinding (car state) (cadr statement) 0) (addBinding (cadr state) (caddr statement) 0))
-                )))
+                    (addBinding state (cadr statement) 'value_undefined 'front)
+                    (addBinding state (cadr statement) (M_value (caddr statement) state) 'front))))
 
 (define (ifImp statement state)
             (if (M_value (cadr statement) state)
