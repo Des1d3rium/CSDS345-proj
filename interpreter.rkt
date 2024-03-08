@@ -32,6 +32,9 @@
 (define (isReturn? statement)
         (eq? (car statement) 'return))
 
+(define (isBeginStatement? statement)
+    (and (list? statement) (eq? (car statement) 'begin)))
+
 ;[Daniel]: In my view, the return function doesn't 'return' the value. Instead, it store the value into state 
 ; and StatementHandler could return it in the next recurively call.  
 (define (isDeclaration? statement)
@@ -99,6 +102,11 @@
             (M_state statement (M_state (caddr statement) state))
             state))
 
+(define (beginImp statement state)
+    (if (null? statement)
+        state
+        (beginImp (cdr statement) (M_state (car statement) state))))
+
 (define (M_state statement state)
             (cond
                 [(isReturn? statement)          (return statement state)]
@@ -106,6 +114,7 @@
                 [(isAssignment? statement)      (assign statement state)]
                 [(isIfStatement? statement)     (ifImp statement state)]
                 [(isWhileStatement? statement)  (whileImp statement state)]
+                [(isBeginStatement? statement)  (beginImp (cdr statement) state)]
                 [else (error "Invalid statement")]
             ))
 
@@ -146,4 +155,5 @@
 (define (execute filename)
     (statementHandler (parser filename) '(()())))
 
+(parser "test.java") ; returns the parsed list of statements, for debugging purposes
 (statementHandler (parser "test.java") '(()()))
