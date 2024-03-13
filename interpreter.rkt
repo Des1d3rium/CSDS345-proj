@@ -8,11 +8,21 @@
 
 ;TODO: lookup is called too many times. 
 
+; [Andrej]: The statement handler now has a with-handlers block that handles
+; raised return values. If the statement handler encounters a return
+; block, the return block will raise the value and the with-handlers block will catch the
+; value and return it.
+
 (define (statementHandler prog state)
-        (cond   
-            [(not (null? (lookup state 'return))) (lookup state 'return)]
-            [else (statementHandler (cdr prog) (M_state (car prog) state))]
-            ))
+    (with-handlers
+        ([(lambda (e) #t)
+         (lambda (e)
+           (if (eq? e 'true) #t
+               (if (eq? e 'false) #f
+                   e)))])
+      (if (null? prog) 
+          state
+          (statementHandler (cdr prog) (M_state (car prog) state)))))
 
 ; an example of state is '((x 10) (y 9)). caar access 'x, and cadar access '10.
 ; [Daniel]: change to '((x y) (10 9)). (car state) access key, and (cadr state) access value.
@@ -32,11 +42,29 @@
 (define (isReturn? statement)
         (eq? (car statement) 'return))
 
+(define (isBreak? statement)
+        (eq? (car statement) 'break))
+    
+(define (isContinue? statement)
+        (eq? (car statement) 'continue))
+
+(define (isThrow? statement)
+        (eq? (car statement) 'throw))
+
+(define (isTry? statement)
+        (eq? (car statement) 'try))
+
+(define (isCatch? statement)
+        (eq? (car statement) 'catch))
+
 (define (isBeginStatement? statement)
     (and (list? statement) (eq? (car statement) 'begin)))
 
 ;[Daniel]: In my view, the return function doesn't 'return' the value. Instead, it store the value into state 
 ; and StatementHandler could return it in the next recurively call.  
+;[Andrej]: In accordance with this, I have updated the return function to raise the value
+; instead of returning it. This way, the statement handler can catch the value and return it.
+; See statementHandler and return for more details.
 (define (isDeclaration? statement)
         (eq? (car statement) 'var))
 
@@ -51,11 +79,14 @@
 
 (define (return statement state)
     (cond
-        [(number? (M_value (cadr statement) state)) (addBinding state 'return (M_value (cadr statement) state) 'front)]
+    ; [Andrej]: The return function now raises the value instead of returning it. The
+    ; statement handler will catch the value and return it.
+        [(number? (M_value (cadr statement) state)) (raise (M_value (cadr statement) state))]
+        ; If it's not an integer, it's a boolean value
         [else 
             (if (M_value (cadr statement) state)
-                (addBinding state 'return 'true  'front)
-                (addBinding state 'return 'false 'front)
+                (raise 'true)
+                (raise 'false)
                 )]))
 
 ; [Daniel]: now it return the index of key. This is passed as a parameter in addBinding to remove and re-add binding.
@@ -75,6 +106,39 @@
         [(eq? k 0)                              (cons value (cdr state))]
         [else                                   (cons (car state) (addBinding-rec (cdr state) value (- k 1)))]
     ))
+
+(define (breakImp statement state)
+  ; Implementation of break statement
+    (if (null? (lookup state 'break))
+        (error "Break statement outside of loop")
+        (addBinding state 'break 'true 'front)
+    )
+  )
+
+(define (continueImp statement state)
+    (if (null? (lookup state 'continue))
+        (error "Continue statement outside of loop")
+        (addBinding state 'continue 'true 'front)
+    )
+  ; Implementation of continue statement
+  )
+
+(define (tryImp statement state)
+  (call-with-current-continuation
+   (lambda (exit)
+     (with-handlers
+         ([(lambda (e) #t)
+           (lambda (e)
+             (if (null? (caddr statement))
+                 (exit state)
+                 (M_state (caddr statement) (addBinding state 'e e 'front))))])
+       (M_state (cadr statement) state)
+       (if (not (null? (cadddr statement)))
+              (M_state (cadddr statement) state)
+              state)))))
+
+(define (throwImp statement state)
+  (raise (M_value (cadr statement) state)))
 
 (define (assign statement state)
     (if (null? (lookup state (cadr statement)))                
@@ -107,9 +171,21 @@
         state
         (beginImp (cdr statement) (M_state (car statement) state))))
 
+(define (catchImp statement state)
+    (with-handlers
+            ([(lambda (e) #t)
+                (lambda (e)
+                    (M_state (caddr statement) (addBinding state 'e e 'front)))])
+        (M_state (cadr statement) state)))
+
 (define (M_state statement state)
             (cond
+                [(isBreak? statement) (breakImp statement state)]
+                [(isContinue? statement) (continueImp statement state)]
+                [(isThrow? statement) (throwImp statement state)]
+                [(isTry? statement) (tryImp statement state)]
                 [(isReturn? statement)          (return statement state)]
+                [(isCatch? statement) (catchImp statement state)]
                 [(isDeclaration? statement)     (declare statement state)]
                 [(isAssignment? statement)      (assign statement state)]
                 [(isIfStatement? statement)     (ifImp statement state)]
