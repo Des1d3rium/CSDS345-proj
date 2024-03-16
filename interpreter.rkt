@@ -161,10 +161,14 @@
                     state
                     (M_state (cadddr statement) state))))
 
-(define (whileImp statement state)
-        (if (M_value (cadr statement) state)
-            (M_state statement (M_state (caddr statement) state))
-            state))
+(define (whileImp statement state next break)
+    (loop (cadr statement) (caddr statement) state next (lambda(s1) (next s1))))
+
+;[Daniel]: (cadr statement) is condition, (caddr statement) is body
+(define (loop condition body state next break)
+    (if (M_value condition state)
+        (M_state body state (lambda(s1) (loop condition body s1 next break)) break)
+        (next state)))
 
 (define (beginImp statement state)
     (if (null? statement)
@@ -178,19 +182,19 @@
                     (M_state (caddr statement) (addBinding state 'e e 'front)))])
         (M_state (cadr statement) state)))
 
-(define (M_state statement state)
+(define (M_state statement state next break)
             (cond
-                [(isBreak? statement) (breakImp statement state)]
-                [(isContinue? statement) (continueImp statement state)]
-                [(isThrow? statement) (throwImp statement state)]
-                [(isTry? statement) (tryImp statement state)]
-                [(isReturn? statement)          (return statement state)]
-                [(isCatch? statement) (catchImp statement state)]
-                [(isDeclaration? statement)     (declare statement state)]
-                [(isAssignment? statement)      (assign statement state)]
-                [(isIfStatement? statement)     (ifImp statement state)]
-                [(isWhileStatement? statement)  (whileImp statement state)]
-                [(isBeginStatement? statement)  (beginImp (cdr statement) state)]
+                [(isBreak? statement)           (breakImp statement state next)]
+                [(isContinue? statement)        (continueImp statement state next)]
+                [(isThrow? statement)           (throwImp statement state next)]
+                [(isTry? statement)             (tryImp statement state next)]
+                [(isReturn? statement)          (return statement state next)]
+                [(isCatch? statement)           (catchImp statement state next)]
+                [(isDeclaration? statement)     (declare statement state next)]
+                [(isAssignment? statement)      (assign statement state next)]
+                [(isIfStatement? statement)     (ifImp statement state next)]
+                [(isWhileStatement? statement)  (whileImp statement state next break)]
+                [(isBeginStatement? statement)  (beginImp (cdr statement) state next)]
                 [else (error "Invalid statement")]
             ))
 
