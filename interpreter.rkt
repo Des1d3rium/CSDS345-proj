@@ -58,7 +58,7 @@
         (eq? (car statement) 'catch))
 
 (define (isBeginStatement? statement)
-    (and (list? statement) (eq? (car statement) 'begin)))
+        (eq? (car statement) 'begin))
 
 ;[Daniel]: In my view, the return function doesn't 'return' the value. Instead, it store the value into state 
 ; and StatementHandler could return it in the next recurively call.  
@@ -166,14 +166,14 @@
 
 ;[Daniel]: (cadr statement) is condition, (caddr statement) is body
 (define (loop condition body state next break)
-    (if (M_value condition state)
+    (if (M_value condition state (lambda(v) v))
         (M_state body state (lambda(s1) (loop condition body s1 next break)) break)
         (next state)))
 
-(define (beginImp statement state)
+(define (beginImp statement state break)
     (if (null? statement)
         state
-        (beginImp (cdr statement) (M_state (car statement) state))))
+        (beginImp (cdr statement) (M_state (car statement) state (cdr statement) break))))
 
 (define (catchImp statement state)
     (with-handlers
@@ -184,7 +184,7 @@
 
 (define (M_state statement state next break)
             (cond
-                [(isBreak? statement)           (breakImp statement state next)]
+                [(isBreak? statement)           (breakImp statement state next break)]
                 [(isContinue? statement)        (continueImp statement state next)]
                 [(isThrow? statement)           (throwImp statement state next)]
                 [(isTry? statement)             (tryImp statement state next)]
@@ -198,11 +198,11 @@
                 [else (error "Invalid statement")]
             ))
 
-(define (M_value statement state)
+(define (M_value statement state return)
         (cond
-            [(number? statement)                                        statement]
-            [(eq? statement 'false)                                     #f]
-            [(eq? statement 'true)                                      #t]
+            [(number? statement)                                        (return statement)]
+            [(eq? statement 'false)                                     (return #f)]
+            [(eq? statement 'true)                                      (return #t)]
 
             ;error check: when a variale is not assigned a value
             [(eq? (lookup state statement) 'value_undefined)            (error "Variable is not assigned a value")]
@@ -210,25 +210,25 @@
             ;error check: when a variable is not declared (it is a symbol and not appeared in state)
             [(and (symbol? statement) (null? (lookup state statement))) (error "Variable is not declared")]
 
-            [(symbol? statement)                                        (lookup state statement)]
+            [(symbol? statement)                                        (return (lookup state statement))]
 
             ;special condition when '- acts as negative sign
-            [(and (eq? (car statement) '-) (null? (cddr statement)))    (* (M_value (cadr statement) state) -1)]
+            [(and (eq? (car statement) '-) (null? (cddr statement)))    (M_value (cadr statement) state (lambda (v) (return (* v -1))))]
 
-            [(eq? (car statement) '+)   (+ (M_value (cadr statement) state) (M_value (caddr statement) state))]  
-            [(eq? (car statement) '-)   (- (M_value (cadr statement) state) (M_value (caddr statement) state))]
-            [(eq? (car statement) '*)   (* (M_value (cadr statement) state) (M_value (caddr statement) state))]
-            [(eq? (car statement) '/)   (quotient (M_value (cadr statement) state) (M_value (caddr statement) state))]
-            [(eq? (car statement) '%)   (remainder (M_value (cadr statement) state) (M_value (caddr statement) state))]
-            [(eq? (car statement) '>)   (> (M_value (cadr statement) state) (M_value (caddr statement) state))]
-            [(eq? (car statement) '>=)  (>= (M_value (cadr statement) state) (M_value (caddr statement) state))]
-            [(eq? (car statement) '<)   (< (M_value (cadr statement) state) (M_value (caddr statement) state))]
-            [(eq? (car statement) '<=)  (<= (M_value (cadr statement) state) (M_value (caddr statement) state))]
-            [(eq? (car statement) '!=)  (not (= (M_value (cadr statement) state) (M_value (caddr statement) state)))]
-            [(eq? (car statement) '!)   (not (M_value (cadr statement) state))]
-            [(eq? (car statement) '&&)  (and (M_value (cadr statement) state) (M_value (caddr statement) state))]
-            [(eq? (car statement) '||)  (or (M_value (cadr statement) state) (M_value (caddr statement) state))]
-            [(eq? (car statement) '==)  (eq? (M_value (cadr statement) state) (M_value (caddr statement) state))]
+            [(eq? (car statement) '+)   (M_value (cadr statement) state (lambda (v_cadr)) (M_value (caddr statement) state (lambda (v_caddr) (return (+ v_cadr v_caddr)))))]  
+            [(eq? (car statement) '-)   (M_value (cadr statement) state (lambda (v_cadr)) (M_value (caddr statement) state (lambda (v_caddr) (return (- v_cadr v_caddr)))))]  
+            [(eq? (car statement) '*)   (M_value (cadr statement) state (lambda (v_cadr)) (M_value (caddr statement) state (lambda (v_caddr) (return (* v_cadr v_caddr)))))]  
+            [(eq? (car statement) '/)   (M_value (cadr statement) state (lambda (v_cadr)) (M_value (caddr statement) state (lambda (v_caddr) (return (quotient v_cadr v_caddr)))))]  
+            [(eq? (car statement) '%)   (M_value (cadr statement) state (lambda (v_cadr)) (M_value (caddr statement) state (lambda (v_caddr) (return (remainder v_cadr v_caddr)))))]  
+            [(eq? (car statement) '>)   (M_value (cadr statement) state (lambda (v_cadr)) (M_value (caddr statement) state (lambda (v_caddr) (return (> v_cadr v_caddr)))))]  
+            [(eq? (car statement) '>=)  (M_value (cadr statement) state (lambda (v_cadr)) (M_value (caddr statement) state (lambda (v_caddr) (return (>= v_cadr v_caddr)))))]  
+            [(eq? (car statement) '<)   (M_value (cadr statement) state (lambda (v_cadr)) (M_value (caddr statement) state (lambda (v_caddr) (return (< v_cadr v_caddr)))))]  
+            [(eq? (car statement) '<=)  (M_value (cadr statement) state (lambda (v_cadr)) (M_value (caddr statement) state (lambda (v_caddr) (return (<= v_cadr v_caddr)))))]  
+            [(eq? (car statement) '!=)  (M_value (cadr statement) state (lambda (v_cadr)) (M_value (caddr statement) state (lambda (v_caddr) (return (not (= v_cadr v_caddr))))))]  
+            [(eq? (car statement) '!)   (M_value (cadr statement) state (lambda (v_cadr)  (return  (not v_cadr))))]  
+            [(eq? (car statement) '&&)  (M_value (cadr statement) state (lambda (v_cadr)) (M_value (caddr statement) state (lambda (v_caddr) (return (and v_cadr v_caddr)))))]
+            [(eq? (car statement) '||)  (M_value (cadr statement) state (lambda (v_cadr)) (M_value (caddr statement) state (lambda (v_caddr) (return (or v_cadr v_caddr)))))]  
+            [(eq? (car statement) '==)  (M_value (cadr statement) state (lambda (v_cadr)) (M_value (caddr statement) state (lambda (v_caddr) (return (eq? v_cadr v_caddr)))))]  
             [else (error "not a vaild value")]
         ))
 
