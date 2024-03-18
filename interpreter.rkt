@@ -124,7 +124,7 @@
   )
 
 (define (tryImp statement state)
-  (call-with-current-continuation
+  (call/cc
    (lambda (exit)
      (with-handlers
          ([(lambda (e) #t)
