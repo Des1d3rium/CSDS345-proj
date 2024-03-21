@@ -9,214 +9,248 @@
 (define (statementHandler prog state k)
   (if (null? prog) 
       (k state)
-      (statementHandler (cdr prog) (M_state (car prog) state k k) k)))
+      (statementHandler (cdr prog) (M_state (car prog) state k k k) k)))
 
-; TODO: lookup is called too many times. 
-; an example of state is '((x 10) (y 9)). caar access 'x, and cadar access '10.
-; [Daniel]: change to '((x y) (10 9)). (car state) access key, and (cadr state) access value.
-; TODO: working on 'list of layers' that support local variables.  
+
+; Examples:
+; (define pre_op car)
+; (define l_operand cadr)
+; (define r_operand caddr)
+
+; ; State access abstractions
+; (define state_vars car)
+; (define state_vals cadr)
+
+; ; Variable access abstractions
+; (define var_name cadr)
+; (define var_value caddr)
+
+; ; If-statement & while-loop abstractions
+; (define condition cadr)
+; (define stmt1 caddr)
+; (define elif cdddr)
+; (define stmt2 cadddr)
+; (define loop_body cddr)
+
+; ; Statement list abstractions
+; (define curr_stmt car)
+; (define next_stmt cdr)
+; (define curr_inner_stmt caar)
+; (define finally_block cadddr)
+; (define catch_block caddr)
+; (define catch_var caaddr)
+; (define try_block cadr)
+; (define throw_block cadr)
+
+; Return abstraction
+(define ret_val cadr)
+
+; Empty state
+(define empty_state '(()()))
+
+(define (push-state state)
+  (cons '() state))
+
+(define (pop-state state)
+  (cdr state))
+
+(define (add-binding state key val)
+  (cons (cons (cons key val) (car state)) (cdr state)))
+
+(define (remove-binding state key)
+  (cons (remove-binding-helper (car state) key) (cdr state)))
+
+(define (remove-binding-helper state key)
+  (cond
+    [(null? state) null]
+    [(eq? (caar state) key) (cdr state)]
+    [else (cons (car state) (remove-binding-helper (cdr state) key))]))
+
 (define (lookup state key)
-    (if(null? state) 
-        null
-        (lookup-rec (car state) (cadr state) key)))
+  (cond
+    [(null? state) null]
+    [(assoc key (car state)) => cdr]
+    [else (lookup (cdr state) key)]))
 
-(define (lookup-rec state-key state-val key)
-    (cond 
-        [(null? state-key)              null]
-        [(eq? (car state-key) key)      (car state-val)]
-        [else                           (lookup-rec (cdr state-key) (cdr state-val) key)]
-    ))
 
 (define (isReturn? statement)
-        (eq? (car statement) 'return))
+  (eq? (car statement) 'return))
 
 (define (isBreak? statement)
-        (eq? (car statement) 'break))
-    
+  (eq? (car statement) 'break))
+
 (define (isContinue? statement)
-        (eq? (car statement) 'continue))
+  (eq? (car statement) 'continue))
 
 (define (isThrow? statement)
-        (eq? (car statement) 'throw))
+  (eq? (car statement) 'throw))
 
 (define (isTry? statement)
-        (eq? (car statement) 'try))
+  (eq? (car statement) 'try))
 
 (define (isCatch? statement)
-        (eq? (car statement) 'catch))
+  (eq? (car statement) 'catch))
 
 (define (isBeginStatement? statement)
-        (eq? (car statement) 'begin))
+  (eq? (car statement) 'begin))
 
-;[Daniel]: In my view, the return function doesn't 'return' the value. Instead, it store the value into state 
-; and StatementHandler could return it in the next recurively call.  
 (define (isDeclaration? statement)
-        (eq? (car statement) 'var))
+  (eq? (car statement) 'var))
 
 (define (isAssignment? statement)
-        (eq? (car statement) '=))
+  (eq? (car statement) '=))
 
 (define (isIfStatement? statement)
-        (and (list? statement) (eq? (car statement) 'if)))
+  (and (list? statement) (eq? (car statement) 'if)))
 
 (define (isWhileStatement? statement)
-        (and (list? statement) (eq? (car statement) 'while)))
+  (and (list? statement) (eq? (car statement) 'while)))
 
 (define (return statement state k)
-    (define return-val (cadr statement))
-        (cond
-            [(null? return-val) (k null)]
-            [(number? return-val) (k return-val)]
-            [(symbol? return-val) (k (lookup state return-val))]
-            [else (error "Invalid return value")]))
+  (define return-val (cadr statement))
+  (cond
+    [(null? return-val) (begin (displayln "Returning null") (k null))]
+    [(number? return-val) (begin (displayln (format "Returning number: ~a" return-val)) (k return-val))]
+    [(symbol? return-val) (begin (displayln (format "Returning symbol: ~a" return-val)) (k (lookup state return-val)))]
+    ; If it's a list, it's an expression. Evaluate it.
+    [(list? return-val) (M_value return-val state (lambda(v) (k v)))]
+    [else (error "Invalid return value" return-val)]))
 
-; [Daniel]: now it return the index of key. This is passed as a parameter in addBinding to remove and re-add binding.
 (define (searchBinding state_key var)
-    (cond
-        [(null? state_key)                 (error "Key not found in removing binding.")]
-        [(eq? (car state_key) var)         0]
-        [else                              (+ 1 (searchBinding (cdr state_key) var))]))
-
-(define (addBinding state key val pos)
-    (list (addBinding-rec (car state) key pos) (addBinding-rec (cadr state) val pos)))
-
-(define (addBinding-rec state value k)
-    (cond
-        [(eq? k 'front)                         (cons value state)]
-        [(and (eq? k 0) (null? state))          (cons value '())]
-        [(eq? k 0)                              (cons value (cdr state))]
-        [else                                   (cons (car state) (addBinding-rec (cdr state) value (- k 1)))]
-    ))
+  (cond
+    [(null? state_key) (error "Variable is not declared")]
+    [(eq? (caar state_key) var) (car state_key)]
+    [else (searchBinding (cdr state_key) var)]))
 
 (define (breakImp statement state)
-  ; Implementation of break statement
-    (if (null? (lookup state 'break))
-        (error "Break statement outside of loop")
-        (addBinding state 'break 'true 'front)
-    )
-  )
+  (displayln "Executing break statement")
+  (if (null? (lookup state 'break))
+      (error "Break statement outside of loop")
+      (add-binding state 'break 'true)))
 
-(define (continueImp statement state)
-    (if (null? (lookup state 'continue))
-        (error "Continue statement outside of loop")
-        (addBinding state 'continue 'true 'front)
-    )
-  ; Implementation of continue statement
-  )
+(define (loop condition body state next break continue)
+  (if (M_value condition state (lambda(v) v))
+      (with-handlers
+          ([(lambda (e) (eq? e 'continue)) (lambda (e) (loop condition body state next break continue))])
+        (M_state body state (lambda(s1) (loop condition body s1 next break continue)) break continue))
+      (let ((state-without-continue (remove-binding state 'continue))) ; Remove 'continue' binding here
+        (next state-without-continue))))
+
+(define (continueImp statement state next)
+  (displayln "Executing continue statement")
+  (if (null? (lookup state 'continue))
+      (error "Continue statement outside of loop")
+      (begin
+        (add-binding state 'continue 'true)
+        (next state))))
 
 (define (tryImp statement state next)
+  (displayln "Executing try statement")
   (call/cc
-   (lambda (exit)
-     (with-handlers
-         ([(lambda (e) #t)
-           (lambda (e)
-             (if (null? (caddr statement))
-                 (exit state)
-                 (M_state (caddr statement) (addBinding state 'e e 'front) (lambda (v) v) (lambda (v) v))))])
-       (M_state (cadr statement) state (lambda (v) v) (lambda (v) v))
-       (if (not (null? (cadddr statement)))
-              (M_state (cadddr statement) state (lambda (v) v) (lambda (v) v))
-              state)))))
+    (lambda (exit)
+      (with-handlers
+          ([(lambda (e) #t)
+            (lambda (e)
+              (if (null? (caddr statement))
+                  (begin (displayln "Exiting try block") (exit state))
+                  (begin (displayln "Executing catch block") (M_state (caddr statement) (add-binding state (cadddr statement) e) (lambda(s1) s1) (lambda(s1) s1)))))])
+        (M_state (cadr statement) state (lambda (v) v) (lambda (v) v) (lambda (v) v))
+        (if (not (null? (cadddr statement)))
+            (M_state (cadddr statement) state (lambda (v) v) (lambda (v) v))
+            state)))))
 
 (define (throwImp statement state)
-    (if (null? (lookup state 'e))
-        (error "Throw statement outside of try block")
-        (addBinding state 'e (lookup state 'e) 'front)
-    )
-)
+  (displayln "Executing throw statement")
+  (if (null? (lookup state 'e))
+      (error "Throw statement outside of try block")
+      (add-binding state 'e (cadr statement))))
 
 (define (assign statement state)
-    (if (null? (lookup state (cadr statement)))                
-        (error "Variable is not declared")
-        (addBinding state (cadr statement) (M_value (caddr statement) state (lambda(v) v))
-            (searchBinding (car state) (cadr statement)))
-    )
+  (displayln "Executing assignment statement")
+  (if (null? (lookup state (cadr statement)))
+      (error "Variable is not declared")
+      (add-binding state (cadr statement) (M_value (caddr statement) state (lambda(v) v)))
+  )
 )
 
 (define (declare statement state)
-            (if (not (null? (lookup state (cadr statement))))
-                (error "Variable is already declared")
-                ;whether the variable is given a initial value
-                (if (null? (cddr statement))
-                    (addBinding state (cadr statement) 'value_undefined 'front)
-                    (addBinding state (cadr statement) (M_value (caddr statement) state (lambda(v) v)) 'front))))
+  (displayln "Executing declaration statement")
+  (if (not (null? (lookup state (cadr statement))))
+      (error "Variable is already declared")
+      (if (null? (cddr statement))
+          (add-binding state (cadr statement) 'value_undefined)
+          (add-binding state (cadr statement) (M_value (caddr statement) state (lambda(v) v))))))
 
 (define (ifImp statement state)
-            (if (M_value (cadr statement) state (lambda(v) v))
-                (M_state (caddr statement) state (lambda(s1) s1) (lambda(s1) s1))
-                ;whether the third argument 'else' exist
-                (if (null? (cdddr statement)) 
-                    state
-                    (M_state (cadddr statement) state (lambda(s1) s1) (lambda(s1) s1))
-                )
-            )
+  (displayln "Executing if statement")
+  (if (M_value (cadr statement) state (lambda(v) v))
+      (M_state (caddr statement) state (lambda(s1) s1) (lambda(s1) s1) (lambda(s1) s1))
+      (if (null? (cdddr statement))
+          state
+          (M_state (cadddr statement) state (lambda(s1) s1) (lambda(s1) s1) (lambda(s1) s1))
+      )
+  )
 )
 
-(define (whileImp statement state next break)
-    (loop (cadr statement) (caddr statement) state next (lambda(s1) (next s1))))
-
-;[Daniel]: (cadr statement) is condition, (caddr statement) is body
-(define (loop condition body state next break)
-    (if (M_value condition state (lambda(v) v))
-        (M_state body state (lambda(s1) (loop condition body s1 next break)) break)
-        (next state)))
+(define (whileImp statement state next break continue)
+  (displayln "Executing while statement")
+  (let ((state-with-continue (add-binding state 'continue 'false))) ; Add 'continue' binding here
+    (loop (cadr statement) (caddr statement) state-with-continue next (lambda(s1) (next s1)) (lambda(s1) (continue s1)))))
 
 (define (beginImp statement state break)
-    (if (null? statement)
-        state
-        (beginImp (cdr statement) (M_state (car statement) state (cdr statement) break) break)))
+  (displayln "Executing begin statement")
+  (if (null? statement)
+      state
+      (beginImp (cdr statement) (M_state (car statement) state (cdr statement) break (lambda (v) v)) break)))
 
 (define (catchImp statement state)
-    (if (null? (lookup state 'e))
-        state
-        (addBinding state (cadr statement) (lookup state 'e) (searchBinding (car state) (cadr statement))))
-)
+  (displayln "Executing catch statement")
+  (if (null? (lookup state 'e))
+      state
+      (add-binding state (cadddr statement) (lookup state 'e))))
 
-(define (M_state statement state next break)
+(define (M_state statement state next break continue)
   (cond
-    [(isBreak? statement)           (breakImp statement state next break)]
-    [(isContinue? statement)        (continueImp statement state next)]
-    [(isThrow? statement)           (throwImp statement state next)]
-    [(isTry? statement)             (tryImp statement state next)]
-    [(isReturn? statement)          (return statement state next)]
-    [(isCatch? statement)           (catchImp statement state)]
-    [(isDeclaration? statement)     (declare statement state)]
-    [(isAssignment? statement)      (assign statement state)]
-    [(isIfStatement? statement)     (ifImp statement state)]
-    [(isWhileStatement? statement)  (whileImp statement state next break)]
-    [(isBeginStatement? statement)  (beginImp (cdr statement) state next)]
-    [else (error "Invalid statement")]
-  ))
+    [(isBreak? statement) (breakImp statement state next break)]
+    [(isContinue? statement) (continueImp statement state next)]
+    [(isThrow? statement) (throwImp statement state next)]
+    [(isTry? statement) (tryImp statement state next)]
+    [(isReturn? statement) (return statement state next)]
+    [(isCatch? statement) (catchImp statement state)]
+    [(isDeclaration? statement) (declare statement state)]
+    [(isAssignment? statement) (assign statement state)]
+    [(isIfStatement? statement) (ifImp statement state)]
+    [(isWhileStatement? statement) (whileImp statement state next break continue)]
+    [(isBeginStatement? statement) (beginImp (cdr statement) state next)]
+    [else (error "Invalid statement")]))
 
 (define (M_value statement state k)
   (cond
-    [(number? statement)                                        (k statement)]
-    [(eq? statement 'false)                                     (k #f)]
-    [(eq? statement 'true)                                      (k #t)]
-    [(eq? (lookup state statement) 'value_undefined)            (error "Variable is not assigned a value")]
+    [(number? statement) (begin (displayln (format "Returning number: ~a" statement)) (k statement))]
+    [(eq? statement 'false) (begin (displayln "Returning boolean: #f") (k #f))]
+    [(eq? statement 'true) (begin (displayln "Returning boolean: #t") (k #t))]
+    [(eq? (lookup state statement) 'value_undefined) (error "Variable is not assigned a value")]
     [(and (symbol? statement) (null? (lookup state statement))) (error "Variable is not declared")]
-    [(symbol? statement)                                        (k (lookup state statement))]
-    ;special condition when '- acts as negative sign
-    [(and (eq? (car statement) '-) (null? (cddr statement)))    (M_value (cadr statement) state (lambda (v) (k (* v -1))))]
-    [(eq? (car statement) '-)                                  (k (- (M_value (cadr statement) state (lambda (v) v)) (M_value (caddr statement) state (lambda (v) v))))]
-    [(eq? (car statement) '+)                                   (k (+ (M_value (cadr statement) state (lambda (v) v)) (M_value (caddr statement) state (lambda (v) v))))]
-    [(eq? (car statement) '*)                                   (k (* (M_value (cadr statement) state (lambda (v) v)) (M_value (caddr statement) state (lambda (v) v))))]
-    [(eq? (car statement) '/)                                   (k (/ (M_value (cadr statement) state (lambda (v) v)) (M_value (caddr statement) state (lambda (v) v))))]
-    [(eq? (car statement) '%)                                   (k (modulo (M_value (cadr statement) state (lambda (v) v)) (M_value (caddr statement) state (lambda (v) v))))]
-    [(eq? (car statement) '>)                                   (k (> (M_value (cadr statement) state (lambda (v) v)) (M_value (caddr statement) state (lambda (v) v))))]
-    [(eq? (car statement) '>=)                                  (k (>= (M_value (cadr statement) state (lambda (v) v)) (M_value (caddr statement) state (lambda (v) v))))]
-    [(eq? (car statement) '<)                                   (k (< (M_value (cadr statement) state (lambda (v) v)) (M_value (caddr statement) state (lambda (v) v))))]
-    [(eq? (car statement) '<=)                                  (k (<= (M_value (cadr statement) state (lambda (v) v)) (M_value (caddr statement) state (lambda (v) v))))]
-    [(eq? (car statement) '!=)                                  (k (not (eq? (M_value (cadr statement) state (lambda (v) v)) (M_value (caddr statement) state (lambda (v) v)))))]
-    [(eq? (car statement) '!)                                   (k (not (M_value (cadr statement) state (lambda (v) v ))))]
-    [(eq? (car statement) '&&)                                  (k (and (M_value (cadr statement) state (lambda (v) v)) (M_value (caddr statement) state (lambda (v) v))))]
-    [(eq? (car statement) '||)                                  (k (or (M_value (cadr statement) state (lambda (v) v)) (M_value (caddr statement) state (lambda (v) v))))]
-    [(eq? (car statement) '==)                                  (k (eq? (M_value (cadr statement) state (lambda (v) v)) (M_value (caddr statement) state (lambda (v) v))))]
-    [else (error "Invalid value")]
-))
+    [(symbol? statement) (begin (displayln (format "Returning symbol: ~a" statement)) (k (lookup state statement)))]
+    [(and (eq? (car statement) '-) (null? (cddr statement))) (M_value (cadr statement) state (lambda (v) (begin (displayln (format "Returning number: ~a" v)) (k (* v -1)))))]
+    [(eq? (car statement) '-) (begin (displayln "Performing subtraction") (k (- (M_value (cadr statement) state (lambda (v) v)) (M_value (caddr statement) state (lambda (v) v)))))]
+    [(eq? (car statement) '+) (begin (displayln "Performing addition") (k (+ (M_value (cadr statement) state (lambda (v) v)) (M_value (caddr statement) state (lambda (v) v)))))]
+    [(eq? (car statement) '*) (begin (displayln "Performing multiplication") (k (* (M_value (cadr statement) state (lambda (v) v)) (M_value (caddr statement) state (lambda (v) v)))))]
+    [(eq? (car statement) '/) (begin (displayln "Performing division") (k (/ (M_value (cadr statement) state (lambda (v) v)) (M_value (caddr statement) state (lambda (v) v)))))]
+    [(eq? (car statement) '%) (begin (displayln "Performing modulo") (k (modulo (M_value (cadr statement) state (lambda (v) v)) (M_value (caddr statement) state (lambda (v) v)))))]
+    [(eq? (car statement) '>) (begin (displayln "Performing greater than comparison") (k (> (M_value (cadr statement) state (lambda (v) v)) (M_value (caddr statement) state (lambda (v) v)))))]
+    [(eq? (car statement) '>=) (begin (displayln "Performing greater than or equal to comparison") (k (>= (M_value (cadr statement) state (lambda (v) v)) (M_value (caddr statement) state (lambda (v) v)))))]
+    [(eq? (car statement) '<) (begin (displayln "Performing less than comparison") (k (< (M_value (cadr statement) state (lambda (v) v)) (M_value (caddr statement) state (lambda (v) v)))))]
+    [(eq? (car statement) '<=) (begin (displayln "Performing less than or equal to comparison") (k (<= (M_value (cadr statement) state (lambda (v) v)) (M_value (caddr statement) state (lambda (v) v)))))]
+    [(eq? (car statement) '!=) (begin (displayln "Performing not equal to comparison") (k (not (eq? (M_value (cadr statement) state (lambda (v) v)) (M_value (caddr statement) state (lambda (v) v))))))]
+    [(eq? (car statement) '!) (begin (displayln "Performing logical negation") (k (not (M_value (cadr statement) state (lambda (v) v)))))]
+    [(eq? (car statement) '&&) (begin (displayln "Performing logical AND") (k (and (M_value (cadr statement) state (lambda (v) v)) (M_value (caddr statement) state (lambda (v) v)))))]
+    [(eq? (car statement) '||) (begin (displayln "Performing logical OR") (k (or (M_value (cadr statement) state (lambda (v) v)) (M_value (caddr statement) state (lambda (v) v)))))]
+    [(eq? (car statement) '==) (begin (displayln "Performing equality comparison") (k (eq? (M_value (cadr statement) state (lambda (v) v)) (M_value (caddr statement) state (lambda (v) v)))))]
+    [else (error "Invalid value")]))
 
 (define (execute filename)
   (statementHandler (parser filename) '(()()) (lambda (s) s)))
 
 (parser "test.java") ; returns the parsed list of statements, for debugging purposes
-(statementHandler (parser "test.java") '(()()) (lambda (s) s)) ; returns the final state, for debugging purposes
+(statementHandler (parser "test.java") '(()()) (lambda (s) s))
