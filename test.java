@@ -1,7 +1,9 @@
 var x = 0;
-var y = 10;
-while (!(x >= y) || !(y > 25)) {
-  x = x + 2;
-  y = y + 1;
+while (x < 10) {
+  x = x - 1;
+  if (x == -1)
+    continue;
+  else 
+    x = x + 2;
 }
 return x;
