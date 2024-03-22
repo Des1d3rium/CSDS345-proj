@@ -17,27 +17,9 @@
 (define (condition stmt) (cadr stmt))
 (define (body stmt) (caddr stmt))
 
-(define (statementHandler prog state)
-  (call/cc
-   (lambda(return)
-        (cond   
-            [(not (null? (lookup state 'return))) (lookup state 'return)]
-            [else (statementHandler (rest-of-prog prog) (M_state (curr-stmt prog) state (lambda(v) v) (lambda(s) s) (lambda(c) c) return))]
-            ))))
-
-; an example of state is '((x 10) (y 9)). caar access 'x, and cadar access '10.
-(define (lookup state key)
-            (cond
-                [(null? state)                          null]
-                [(eq? (var-name state) key)                 (var-value state)]
-                [else                                   (lookup (cdr state) key)]
-            ))
-
 (define (isReturn? statement)
         (eq? (operator statement) 'return))
 
-;[Daniel]: In my view, the return function doesn't 'return' the value. Instead, it store the value into state 
-; and StatementHandler could return it in the next recurively call.  
 (define (isDeclaration? statement)
         (eq? (operator statement) 'var))
 
@@ -59,28 +41,57 @@
 (define (isContinue? statement)
         (eq? (operator statement) 'continue))
 
-(define (returnImp statement state next break continue)
-    (cond
-        [(number? (M_value (defined-var statement) state)) (append state (list (list 'return (M_value (defined-var statement) state))))]
-        [else 
-            (if (M_value (defined-var statement) state)
-                (append state (list (list 'return 'true)))
-                (append state (list (list 'return 'false))))]))
+(define (isTry? statement)
+        (eq? (operator statement) 'try))
+
+(define (isThrow? statement)
+        (eq? (operator statement) 'throw))
+
+(define (statementHandler prog state)
+  (call/cc (lambda(return)
+  (call/cc (lambda(throw)
+        (statementHandler (rest-of-prog prog) (M_state (curr-stmt prog) state (lambda(v) v) (lambda(s) s) (lambda(c) c) return throw))
+            )))))
+
+; an example of state is '((x 10) (y 9)). caar access 'x, and cadar access '10.
+(define (lookup state key)
+            (cond
+                [(null? state)                          null]
+                [(eq? (var-name state) key)             (var-value state)]
+                [else                                   (lookup (cdr state) key)]
+            ))
 
 (define (removeBinding state var)
     (cond
         [(null? (lookup state var))                (error "Variable is not declared")]
-        [(eq? (var-name state) var)                    (cdr state)]
+        [(eq? (var-name state) var)                (cdr state)]
         [else                                      (cons (car state) (removeBinding (cdr state) var))]
+))
+
+(define (try-catch-finally statement state next break continue throw)
+    (cond
+        [(and (null? (cadddr statement)) (null? (caddr statement)))     ; both finally blk and catch blk doesn't exist
+            (M_state (cadr statement) state next break continue throw)] ; throw exception out, if has, and no finally blk to be done
+        [(null? (caddr statement))                                      ; catch blk doesn't exist
+            (M_state (cadr statement) state 
+                (lambda(s) (M_state (cadddr statement) s next break continue throw))
+                    next break continue throw)]                         ; execute finally blk after
+        [(null? (cadddr statement))                                     ; finally blk doesn't exist
+            (M_state (cadr statement) state next break continue 
+                (lambda(s) (M_state (caddr statement) s next break continue throw)))]
+        [else (M_state (cadr statement) state                           ; both blks exist
+            (lambda(s) (M_state (cadddr statement) s next break continue throw))
+                break continue 
+                    (lambda(v) (M_state(caddr statement) v next break continue throw)))]
 ))
 
 (define (addBinding state var value)
     (append state (list (list var value))))
 
-(define (assign statement state next break continue)
+(define (assign statement state next break continue throw)
     (addBinding (removeBinding state (defined-var statement)) (defined-var statement) (M_value (caddr statement) state)))
 
-(define (declare statement state next break continue)
+(define (declare statement state next break continue throw)
             (if (not (null? (lookup state (defined-var statement))))
                 (error "Variable is already declared")
                 ;whether the variable is given a initial value
@@ -89,41 +100,44 @@
                     (addBinding state (cadr statement) (M_value (caddr statement) state))
                 )))
 
-; [Daniel]: We probably doesn't need this. Use call/cc instead
-(define (ifImp statement state next break continue return)
+(define (ifImp statement state next break continue return throw)
             (if (M_value (condition statement) state)
-                (M_state (body statement) state next break continue return)
+                (M_state (body statement) state next break continue return throw)
                 ;whether the third argument 'else' exist
                 (if (null? (cdddr statement)) 
                     state
-                    (M_state (cadddr statement) state next break continue return))))
+                    (M_state (cadddr statement) state next break continue return throw))))
 
-(define (beginImp statement state next break continue return)
-  ;local variable
-  (M_state (car statement) state (lambda(s) (M_state (cadr statement) s next break continue return)) break continue return)) 
+(define (beginImp statement state next break continue return throw)
+  ;local variable added by using addLocalLayer()
+  (M_state (car statement) (addLocalLayer state) (lambda(s) (M_state (cadr statement) s next break continue return)) break continue return)) 
 
+(define (addLocalLayer state)
+  (list state '()))
 
-(define (whileImp statement state next break continue return)
+(define (whileImp statement state next break continue return throw)
     (loop (defined-var statement) (defined-var-value statement) state next
           (lambda(s1) (next s1))
-          (lambda(s2) (loop (condition statement) (body statement) s2 next break continue return)) return))
+          (lambda(s2) (loop (condition statement) (body statement) s2 next break continue return throw)) return throw))
 
 ;[Daniel]: (cadr statement) is condition, (caddr statement) is body
-(define (loop condition body state next break continue return)
+(define (loop condition body state next break continue return throw)
     (if (M_value condition state)
-        (M_state body state (lambda(s1) (loop condition body s1 next break continue return)) break continue return)
+        (M_state body state (lambda(s1) (loop condition body s1 next break continue return throw)) break continue return throw)
         (next state)))
 
-(define (M_state statement state next break continue return)
+(define (M_state statement state next break continue return throw)
             (cond
                 [(isBreak? statement)           (break state)]
                 [(isContinue? statement)        (continue state)]
-                [(isBegin? statement)           (beginImp (cdr statement) state next break continue return)] ;passing everything except 'begin
+                [(isThrow? statement)           (throw state)]
+                [(isBegin? statement)           (beginImp (cdr statement) state next break continue return throw)] ;passing everything except 'begin
                 [(isReturn? statement)          (return (lookup state (cadr statement)))]
-                [(isDeclaration? statement)     (next (declare statement state next break continue))]
-                [(isAssignment? statement)      (next (assign statement state next break continue))]
-                [(isIfStatement? statement)     (next (ifImp statement state next break continue return))]
-                [(isWhileStatement? statement)  (next (whileImp statement state next break continue return))]
+                [(isDeclaration? statement)     (next (declare statement state next break continue throw))]
+                [(isAssignment? statement)      (next (assign statement state next break continue throw))]
+                [(isIfStatement? statement)     (next (ifImp statement state next break continue return throw))]
+                [(isWhileStatement? statement)  (next (whileImp statement state next break continue return throw))]
+                [(isTry? statement)             (next (try-catch-finally statement state next break continue return throw))]
                 [else (error "Invalid statement")]
             ))
 

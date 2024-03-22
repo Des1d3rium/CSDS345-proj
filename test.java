@@ -1,9 +1,16 @@
-var x = 0;
-while (x < 10) {
-  x = x - 1;
-  if (x == -1)
-    continue;
-  else 
-    x = x + 2;
+var x = 10;
+var result = 1;
+
+try {
+  while (x < 10000) {
+    result = result - 1;
+    x = x * 10;
+
+    if (x > 1000)
+      throw x;
+  }
 }
-return x;
+catch (ex) {
+  throw 1;
+}
+return result;
