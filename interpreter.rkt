@@ -40,9 +40,25 @@
       ((eq? 'continue (statement-type statement)) (continue environment))
       ((eq? 'break (statement-type statement)) (break environment))
       ((eq? 'begin (statement-type statement)) (interpret-block statement environment return break continue throw))
+      ; Function call resembles a block: '(function main (args) (body))
+      ((eq? 'function (statement-type statement)) (interpret-function statement environment return break continue throw))
       ((eq? 'throw (statement-type statement)) (interpret-throw statement environment throw))
       ((eq? 'try (statement-type statement)) (interpret-try statement environment return break continue throw))
       (else (myerror "Unknown statement:" (statement-type statement))))))
+
+; Interpret a function definition.  The function is stored in the environment as a variable with
+; the function body as the value.
+(define interpret-function
+  (lambda (statement environment return break continue throw)
+    ; Andrej: args doesn't do anything yet, but it SHOULD be used to create a new environment with
+    ; the function's arguments
+    (let* ((function-name (operand1 statement))
+           (args (operand2 statement))
+           (body (operand3 statement))
+           ; Handle args by creating a new environment with the function's arguments
+           (function-env (insert function-name (lambda (args) (interpret-statement-list body
+                  (push-frame environment) return break continue throw)) environment)))
+      (interpret-statement-list body function-env return break continue throw))))
 
 ; Calls the return continuation with the given expression value
 (define interpret-return
@@ -395,4 +411,6 @@
                             (makestr (string-append str (string-append " " (symbol->string (car vals)))) (cdr vals))))))
       (error-break (display (string-append str (makestr "" vals)))))))
 
+
+(parser "test.java")
 (interpret "test.java")
