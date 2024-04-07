@@ -26,7 +26,9 @@
   (lambda (statement-list environment return break continue throw)
     (if (null? statement-list)
         environment
-        (interpret-statement-list (cdr statement-list) (interpret-statement (car statement-list) environment return break continue throw) return break continue throw))))
+        (interpret-statement-list (cdr statement-list)
+                                  (interpret-statement (car statement-list) environment return break continue throw)
+                                  return break continue throw))))
 
 ; interpret a statement in the environment with continuations for return, break, continue, throw
 (define interpret-statement
@@ -46,19 +48,45 @@
       ((eq? 'try (statement-type statement)) (interpret-try statement environment return break continue throw))
       (else (myerror "Unknown statement:" (statement-type statement))))))
 
-; Interpret a function definition.  The function is stored in the environment as a variable with
-; the function body as the value.
+; Helper function to create a unique closure
+(define (make-closure params body env return break continue throw)
+  (letrec ((unique-name (gensym "function"))) ; Generate unique name
+    (lambda (args)
+      (let ((param-env (extend-environment params args env)))
+        (interpret-statement-list body param-env return break continue throw)))))
+
+; Interpret a function definition.
+; The function is a closure that takes a list of arguments and evaluates the body in an environment that extends the current environment with the parameters.
 (define interpret-function
   (lambda (statement environment return break continue throw)
-    ; Andrej: args doesn't do anything yet, but it SHOULD be used to create a new environment with
-    ; the function's arguments
     (let* ((function-name (operand1 statement))
-           (args (operand2 statement))
-           (body (operand3 statement))
-           ; Handle args by creating a new environment with the function's arguments
-           (function-env (insert function-name (lambda (args) (interpret-statement-list body
-                  (push-frame environment) return break continue throw)) environment)))
-      (interpret-statement-list body function-env return break continue throw))))
+           (params (operand2 statement))
+           (body (operand3 statement)))
+      (insert function-name
+              (letrec ((f (lambda (args) ; Closure for specific function
+                            (let ((param-env (extend-environment params args environment)))
+                              (interpret-statement-list body param-env return break continue throw)))))
+                ; Run the function in the current environment
+                f)
+                environment))))
+              
+; Evaluate a function call.
+(define eval-function-call
+  (lambda (expr environment)
+    (let ((function (lookup (operator expr) environment))
+          (args (map (lambda (arg) (eval-expression arg environment)) (operands expr))))
+      (function args)))
+)
+
+(define operands (lambda (expr) (cdr expr)))
+
+; Extend the environment with function parameters and corresponding arguments.
+(define extend-environment
+  (lambda (params args environment)
+    (if (null? params)
+        environment
+        (extend-environment (cdr params) (cdr args) 
+                           (insert (car params) (car args) environment)))))
 
 ; Calls the return continuation with the given expression value
 (define interpret-return
@@ -160,9 +188,14 @@
       (else (cons 'begin (cadr finally-statement))))))
 
 ; Evaluates all possible boolean and arithmetic expressions, including constants and variables.
+; Update eval-expression to handle function calls.
 (define eval-expression
   (lambda (expr environment)
     (cond
+      ((list? expr) ; Check if it's a function call
+       (if (exists? (operator expr) environment) ; Check if the function exists
+           (eval-function-call expr environment) ; Evaluate function call
+           (eval-operator expr environment))) ; Otherwise, it's a normal operator
       ((number? expr) expr)
       ((eq? expr 'true) #t)
       ((eq? expr 'false) #f)
