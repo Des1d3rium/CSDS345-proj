@@ -1,14 +1,10 @@
-function main() {
-  var x = 10;
-  var y = 20;
-  var z = 30;
-  var min = 0;
+function fib(a) {
+  if (a <= 1) {
+    return a;
+  }
+  return fib(a - 1) + fib(a - 2);
+}
 
-  if (x < y)
-    min = x;
-  else
-    min = y;
-  if (min > z)
-    min = z;
-  return min;
+function main() {
+  return fib(10);
 }
