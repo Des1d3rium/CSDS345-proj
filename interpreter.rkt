@@ -272,7 +272,7 @@
               (new-return (lambda (v) (begin (interpret-block finally-block environment return break continue throw) (return v))))
               (new-break (lambda (env) (break (interpret-block finally-block env return break continue throw))))
               (new-continue (lambda (env) (continue (interpret-block finally-block env return break continue throw))))
-              (new-throw (create-throw-catch-continuation (get-catch statement) environment return break continue throw jump finally-block)))
+              (new-throw (create-throw-catch-continuation (get-catch statement) return break continue throw jump finally-block)))
          (interpret-block finally-block
                           (interpret-block try-block environment new-return new-break new-continue new-throw)
                           return break continue throw))))))

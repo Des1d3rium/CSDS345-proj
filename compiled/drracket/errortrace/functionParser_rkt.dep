@@ -1,0 +1,1 @@
+("8.11.1" ta6nt ("e3527dc3bb89573bdb3fda3c24f02cb42542f48c" . "3fd6a11bf5254bb6aec1e7baab1301be3d6b2f4a") #"E:\\Git\\CSDS345-proj\\lex.rkt" (collects #"drracket" #"private" #"drracket-errortrace-key.rkt") (collects #"racket" #"main.rkt") (collects #"racket" #"runtime-config.rkt"))
