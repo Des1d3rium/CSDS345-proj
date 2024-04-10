@@ -46,7 +46,7 @@
       ((eq? 'break (statement-type statement)) (break environment))
       ((eq? 'begin (statement-type statement)) (interpret-block statement environment return break continue throw))
       ; Function call resembles a block: '(function main (args) (body))
-      ((eq? 'function (statement-type statement) (declare-function statement environment)))
+      ((eq? 'function (statement-type statement)) (declare-function statement environment))
       ; Function call pops the environment after the function call is done
       ; and updates the environment with the new bindings from the function call.
       ; The function call is interpreted with a new return continuation that updates the environment with the new bindings.

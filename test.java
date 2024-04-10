@@ -1,16 +1,30 @@
-var b = 7;
-
-function fib(a) {
-  if (a <= 1) {
-    return a;
-  }
-  return fib(a - 1) + fib(a - 2);
+function divide(x, y) {
+  if (y == 0)
+    throw 1000000;
+  return x / y;
 }
 
-function main() {
-  var a = 10;
-  if (a < 0) {
-    return -1;
+ function main() {
+  var x = 0;
+  var j = 1;
+
+  try {
+    while (j >= 0) {
+    var i = 10;
+    while (i >= 0) {
+      try {
+        x = x + divide(10*i, i);
+      }
+      catch(e) {
+        x = x + divide(e, j);
+      }
+      i = i - 1;
+    }
+    j = j - 1;
+   }
   }
-  return fib(b);
+  catch (e2) {
+    x = x * 2;
+  }
+  return x;
 }
