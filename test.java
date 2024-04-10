@@ -1,27 +1,17 @@
-function main() {
-  var result;
-  var base;
+var a = 10;
+var b = 20;
 
-  function getpow(a) {
-     var x;
+function bmethod() {
+  var b = 30;
+  return a + b;
+}
 
-     function setanswer(n) {
-        result = n;
-     }
+function cmethod() {
+  var a = 40;
+  return bmethod() + a + b;
+}
 
-     function recurse(m) {
-       if (m > 0) {
-         x = x * base;
-         recurse(m-1);
-       }
-       else
-         setanswer(x);
-     }
-
-     x = 1;
-     recurse(a);
-  }
-  base = 2;
-  getpow(6);
-  return result;
+function main () {
+  var b = 5;
+  return cmethod() + a + b;
 }

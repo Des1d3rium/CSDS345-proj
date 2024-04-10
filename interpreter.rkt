@@ -272,7 +272,7 @@
               (new-return (lambda (v) (begin (interpret-block finally-block environment return break continue throw) (return v))))
               (new-break (lambda (env) (break (interpret-block finally-block env return break continue throw))))
               (new-continue (lambda (env) (continue (interpret-block finally-block env return break continue throw))))
-              (new-throw (create-throw-catch-continuation (get-catch statement) return break continue throw jump finally-block)))
+              (new-throw (create-throw-catch-continuation (get-catch statement) environment return break continue throw jump finally-block)))
          (interpret-block finally-block
                           (interpret-block try-block environment new-return new-break new-continue new-throw)
                           return break continue throw))))))
@@ -297,7 +297,8 @@
       ((number? expr) expr)
       ((eq? expr 'true) #t)
       ((eq? expr 'false) #f)
-      ((not (list? expr)) (lookup expr environment))
+      ((not (list? expr)) 
+        (lookup-in-static-chain expr environment (cdr environment))) 
       ((eq? 'funcall (statement-type expr)) (result (interpret-function expr environment (lambda (v env) (myerror "Uncaught exception thrown")))))
       (else (eval-operator expr environment)))))
 
@@ -425,7 +426,7 @@
 ; A helper function that does the lookup. Returns an error if the variable does not have a legal value
 (define lookup-variable
   (lambda (var environment)
-    (let ((value (lookup-in-env var environment)))
+    (let ((value (lookup-in-env var environment (cdr environment))))
       (if (eq? 'novalue value)
           (myerror "error: variable without an assigned value:" var)
           value))))
@@ -433,22 +434,35 @@
 ; Return the value bound to a variable in the environment
 ; If not found, lookup in the static environment
 (define lookup-in-env
-  (lambda (var environment)
+  (lambda (var environment static-environment)
     (cond
       ((null? environment) (myerror "error: undefined variable" var))
       ((exists-in-list? var (variables (car environment))) (lookup-in-frame var (car environment)))
-      (else (static-env-lookup var environment))))
-)
-
-; Return the value bound to a variable in the environment, but only in the static environment
-(define static-env-lookup
-  (lambda (var environment)
-    (cond
-      ((null? environment) (myerror "error: undefined variable" var))
-      ((exists-in-list? var (variables (lastframe environment))) (lookup-in-frame var (lastframe environment)))
-      (else (lookup-in-env var (cdr environment))))
+      (else (lookup-in-static-chain var static-environment environment)) ; Look up in static chain
+    )
   )
 )
+
+; Look up a variable in the static chain of environments
+(define lookup-in-static-chain
+  (lambda (var static-chain current-env)
+    (cond
+      ((null? static-chain) (myerror "error: undefined variable" var))
+      ((exists-in-list? var (variables (car static-chain))) 
+       (lookup-in-frame var (car static-chain))) ; Found in static chain
+      (else 
+       (lookup-in-static-chain var (cdr static-chain) current-env)) ; Continue searching
+    )
+  )
+)
+
+(define butlast
+  (lambda (lst)
+    (if (null? (cdr lst))
+        '()
+        (cons (car lst) (butlast (cdr lst)))))
+)
+
 
 ; Return the value bound to a variable in the frame
 (define lookup-in-frame
