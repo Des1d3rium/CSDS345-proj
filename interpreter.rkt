@@ -198,7 +198,7 @@
 (define interpret-assign
   (lambda (statement environment)
     (update (get-assign-lhs statement) (eval-expression (get-assign-rhs statement) environment) environment)))
-
+      
 ; We need to check if there is an else condition. Otherwise, we evaluate the expression and do the right thing.
 (define interpret-if
   (lambda (statement environment return break continue throw)
@@ -226,8 +226,12 @@
 (define interpret-block
   (lambda (statement environment return break continue throw)
     (pop-frame (interpret-statement-list (cdr statement)
+                                         ; Push a new frame for the block
                                          (push-frame environment)
+                                         ; Adjust the return continuation to pop the frame
                                          return
+                                         ; Adjust the break continuation to pop the frame
+                                         ; Same for continue and throw
                                          (lambda (env) (break (pop-frame env)))
                                          (lambda (env) (continue (pop-frame env)))
                                          (lambda (v env) (throw v (pop-frame env)))))))
@@ -297,9 +301,10 @@
       ((eq? 'funcall (statement-type expr)) (result (interpret-function expr environment (lambda (v env) (myerror "Uncaught exception thrown")))))
       (else (eval-operator expr environment)))))
 
-; Evaluate a binary (or unary) operator. Although this is not dealing with side effects, I have the routine evaluate the left operand first and then
-; pass the result to eval-binary-op2 to evaluate the right operand. This forces the operands to be evaluated in the proper order in case you choose
-; to add side effects to the interpreter
+; Evaluate a binary (or unary) operator. Although this is not dealing with side effects,
+; I have the routine evaluate the left operand first and then pass the result to eval-binary-op2
+; to evaluate the right operand. This forces the operands to be evaluated in the proper order
+; in case you choose to add side effects to the interpreter
 (define eval-operator
   (lambda (expr environment)
     (cond
@@ -426,12 +431,24 @@
           value))))
 
 ; Return the value bound to a variable in the environment
+; If not found, lookup in the static environment
 (define lookup-in-env
   (lambda (var environment)
     (cond
       ((null? environment) (myerror "error: undefined variable" var))
       ((exists-in-list? var (variables (car environment))) (lookup-in-frame var (car environment)))
-      (else (lookup-in-env var (cdr environment))))))
+      (else (static-env-lookup var environment))))
+)
+
+; Return the value bound to a variable in the environment, but only in the static environment
+(define static-env-lookup
+  (lambda (var environment)
+    (cond
+      ((null? environment) (myerror "error: undefined variable" var))
+      ((exists-in-list? var (variables (lastframe environment))) (lookup-in-frame var (lastframe environment)))
+      (else (lookup-in-env var (cdr environment))))
+  )
+)
 
 ; Return the value bound to a variable in the frame
 (define lookup-in-frame

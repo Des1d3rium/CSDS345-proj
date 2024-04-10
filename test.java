@@ -1,3 +1,5 @@
+var b = 7;
+
 function fib(a) {
   if (a <= 1) {
     return a;
@@ -6,5 +8,9 @@ function fib(a) {
 }
 
 function main() {
-  return fib(10);
+  var a = 10;
+  if (a < 0) {
+    return -1;
+  }
+  return fib(b);
 }
