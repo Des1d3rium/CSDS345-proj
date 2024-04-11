@@ -1,11 +1,12 @@
-; If you are using scheme instead of racket, comment these two lines, uncomment the (load "simpleParser.scm") and comment the (require "simpleParser.rkt")
+; Simple Language Interpreter Part 3
+; Zeyu Chen, Andrej Antunovikj, Dasheng Lin
+
 #lang racket
 (require "functionParser.rkt")
-; (load "simpleParser.scm")
 
 
-; An interpreter for the simple language that uses call/cc for the continuations.  Does not handle side effects.
-(define call/cc call-with-current-continuation)
+; An interpreter for the simple language that uses call/cc for the continuations.
+; Does not handle side effects.
 
 
 ; The functions that start interpret-...  all return the current environment.
@@ -49,8 +50,10 @@
       ((eq? 'function (statement-type statement)) (declare-function statement environment))
       ; Function call pops the environment after the function call is done
       ; and updates the environment with the new bindings from the function call.
-      ; The function call is interpreted with a new return continuation that updates the environment with the new bindings.
-      ((eq? 'funcall (statement-type statement)) (extend-environment (pop-frame (return-environment (interpret-function statement environment throw))) environment))
+      ; The function call is interpreted with a new return continuation that updates the environment
+      ; with the new bindings.
+      ((eq? 'funcall (statement-type statement)) (extend-environment (pop-frame (return-environment
+                                    (interpret-function statement environment throw))) environment))
       ((eq? 'throw (statement-type statement)) (interpret-throw statement environment throw))
       ((eq? 'try (statement-type statement)) (interpret-try statement environment return break continue throw))
       (else (myerror "Unknown statement:" (statement-type statement))))))
@@ -69,7 +72,8 @@
   (lambda (function-environment previous-environment)
     (cond
       ((null? function-environment) previous-environment)
-      (else (extend-environment (cdr function-environment) (update-frame (variables (car function-environment)) (cddr (car function-environment)) previous-environment '()))))))
+      (else (extend-environment (cdr function-environment) (update-frame (variables (car function-environment))
+                                      (cddr (car function-environment)) previous-environment '()))))))
 
 ; Connamacher said we should do a first global pass.
 ; This function creates the global environment by interpreting each statement in the statement list
@@ -121,9 +125,6 @@
         ((null? function-val-list) (myerror "Unknown variable" (car function-var-list)))
         (else (update-frame (cdr function-var-list) '() previous-environment (cons (cons (caar function-var-list) function-val-list) limbo)))))))
 
-; find-in-limbo is a helper function for update-frame
-; It finds the value of a variable in the limbo list.
-; If the variable is not found, it throws an error.
 (define find-in-limbo
   (lambda (var limbo)
     (cond
